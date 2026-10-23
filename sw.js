@@ -1,5 +1,5 @@
 // Keeps PhotoFlow working offline. Bump VERSION after updating any file.
-const VERSION = 'photoflow-v14';
+const VERSION = 'photoflow-v15';
 const FILES = ['./', 'index.html', 'face-api.js', 'jszip.min.js', 'facemodel.js', 'signature.js', 'manifest.webmanifest',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png', 'icons/apple-180.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(VERSION).then(c => c.addAll(FILES))); self.skipWaiting(); });

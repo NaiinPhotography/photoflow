@@ -1092,8 +1092,8 @@ async function openPF(file){let j;try{j=JSON.parse(await file.text())}catch(e){j
   if(j.type==='settings'){const s=j.settings||{};for(const k of PROJ_KEYS)if(k in s)P[k]=s[k];if(!P.adj.curve)P.adj.curve=ADJ0().curve;store.set('pf_settings',P);
     const user=store.get('pf_presets',[]);for(const p of j.presets||[])if(!user.some(u=>u.n===p.n))user.push(p);store.set('pf_presets',user);
     for(const l of j.logos||[])if(!logos.some(x=>x.url===l.url))logos.push(l);store.set('pf_logos',logos);
-    const tp=store.get('pf_tpls',[]);for(const t of j.templates||[])if(!tp.some(x=>x.n===t.n))tp.push(t);store.set('pf_tpls',tp);if(j.templateValues)store.set('pf_tplv',Object.assign(store.get('pf_tplv',{}),j.templateValues));if(typeof paintTpl==='function')paintTpl();
-    paintSettings();paintAdj();changed();msg(`นำเข้าการตั้งค่าแล้ว ✓ พรีเซ็ต ${(j.presets||[]).length} · ลายน้ำ ${(j.logos||[]).length}`)}}
+    const tp=store.get('pf_tpls',[]);for(const t of j.templates||[])if(!tp.some(x=>x.n===t.n))tp.push(t);store.set('pf_tpls',tp);if(j.templateValues)store.set('pf_tplv',Object.assign(store.get('pf_tplv',{}),j.templateValues));if(typeof selectTpl==='function')selectTpl(tplIdx);
+    paintSettings();paintAdj();changed();msg(`นำเข้าแล้ว ✓ แม่แบบ ${(j.templates||[]).length} · พรีเซ็ต ${(j.presets||[]).length} · ลายน้ำ ${(j.logos||[]).length}`);if((j.templates||[]).length){const ap=$('artPanel');if(ap)setTimeout(()=>ap.scrollIntoView({behavior:'smooth'}),300)}}}
 $('projSave').onclick=async()=>{if(!items.length){msg('ยังไม่มีภาพในงานนี้',true);return}
   const r=await offerText(`PhotoFlow งานแต่ง ${today()}.txt`,projectData());if(r!=='cancel')msg(r==='shared'?'ส่งไฟล์งานแต่งแล้ว ✓ เก็บไว้คู่กับภาพใน Google Drive':'บันทึกไฟล์งานแต่งในโฟลเดอร์ Download แล้ว ✓')};
 $('setSave').onclick=async()=>{const s={};PROJ_KEYS.forEach(k=>s[k]=P[k]);
@@ -1101,24 +1101,8 @@ $('setSave').onclick=async()=>{const s={};PROJ_KEYS.forEach(k=>s[k]=P[k]);
   if(r!=='cancel')msg('ส่งออกการตั้งค่าและพรีเซ็ตแล้ว ✓')};
 /* art */
 /* ======================= AI art studio: prompt templates + OpenAI image generation ======================= */
-const TPL_FOLD=`สร้างงานศิลป์ Editorial เหนือจริงระดับพิพิธภัณฑ์จาก [บุคคล / แลนด์มาร์ก / วัตถุ / เมือง] ภายใต้แนวคิด “THE WORLD INSIDE A FOLD”
 
-วางตัวแบบหลักอย่างสง่างาม สมจริง และจดจำได้ บนพื้นกระดาษสีงาช้างอุ่นกว้างโล่ง โดยให้มี “รอยพับกระดาษ” ขนาดใหญ่ 1–2 รอยพาดผ่านองค์ประกอบอย่างประณีต ราวกับพื้นผิวของภาพกำลังถูกพับเปิดออก เผยให้เห็นโลกซ่อนเร้นที่อยู่ “ภายในรอยพับ” ไม่ใช่เพียงใต้พื้นผิว แต่เป็นมิติอีกชั้นหนึ่งที่เชื่อมโยงกับตัวแบบ
-
-ภายในรอยพับให้ประกอบด้วยฉากจิ๋ว สถาปัตยกรรม ภูมิทัศน์ ถนน ผู้คน ความทรงจำ สัญลักษณ์ วัตถุ และรายละเอียดวัฒนธรรมของ [บุคคล / สถานที่ / เมือง / ประเทศ] โดยให้รายละเอียดค่อยๆ แน่นขึ้นเมื่อมองลึกเข้าไปในรอยพับ ราวกับแผ่นกระดาษบางๆ กลายเป็นโลกทั้งใบ
-
-ภาษาภาพไล่จากวัสดุสมจริงด้านนอก สู่โลกด้านในที่ผสม miniature diorama, fine paper sculpture, graphite drawing, ink linework, engraving, halftone และรายละเอียดเพนต์จิ๋วอย่างประณีต เน้น micro-details ที่ค้นพบได้เมื่อมองใกล้
-
-องค์ประกอบมินิมอล มี Negative Space มาก ลำดับสายตาจากตัวแบบเรียบง่าย → รอยพับที่เผยโลกซ่อนอยู่ภายใน วัสดุหลักเป็น fine art paper, embossing, graphite, matte ink และรอยพิมพ์ทำมือ
-
-พาเลตงาช้าง ชาร์โคล ดำซีด เทาหิน เบจฝุ่น และสีเอกลักษณ์เพียง 1 สีจาก [ประเทศ / เมือง / ตัวแบบ] แสงนุ่มแบบแกลเลอรีร่วมสมัย อารมณ์สุขุม ละเมียด ลึกลับ กวี และหรูแบบพิพิธภัณฑ์
-
-Typography เล็กมาก: “[NAME]” ฟอนต์ Serif เรียบหรูแบบป้ายงานนิทรรศการ วางห่างจากภาพ
-
-ห้ามแฟนตาซีทั่วไป แสงเรืองเกินจริง นีออน ของตกแต่งสุ่ม หรือองค์ประกอบรก
-
-แนวตั้ง 4:5 — premium contemporary art poster — museum exhibition quality — surreal editorial photography + handcrafted paper art — ultra-detailed`;
-const TPL_BUILTIN=[{n:'THE WORLD INSIDE A FOLD',t:TPL_FOLD,b:1}];
+const TPL_BUILTIN=[]; // community prompts are imported per device, not shipped in the public code
 const TPL_HINTS={'บุคคล / แลนด์มาร์ก / วัตถุ / เมือง':'เช่น หญิงสาวในชุดไทยสีชมพูจากภาพที่แนบ','บุคคล / สถานที่ / เมือง / ประเทศ':'เช่น กรุงเทพฯ ประเทศไทย','ประเทศ / เมือง / ตัวแบบ':'เช่น ชมพูกลีบบัวจากชุดของตัวแบบ','NAME':'เช่น NAMTARA หรือ THAI'};
 let tplIdx=0,tplWork='';
 function tplAll(){return TPL_BUILTIN.concat(store.get('pf_tpls',[]))}
@@ -1126,11 +1110,11 @@ function tplKeys(t){const s=new Set();for(const m of t.matchAll(/\[([^\]\n]{1,60
 function tplVals(){return store.get('pf_tplv',{})}
 function tplFilled(){const v=tplVals();let missing=0;const out=tplWork.replace(/\[([^\]\n]{1,60})\]/g,(m,k)=>{const x=(v[k]||'').trim();if(!x){missing++;return m}return x});return {out,missing}}
 function paintTpl(){const all=tplAll();if(tplIdx>=all.length)tplIdx=0;
-  $('tplChips').innerHTML=all.map((t,i)=>`<button type="button" data-i="${i}" class="${i===tplIdx?'on':''}">${t.n.replace(/[<>&"]/g,'')}${t.b?'':' <span data-del="'+i+'">✕</span>'}</button>`).join('');
+  $('tplChips').innerHTML=(all.length?'':'<p class="hint">ยังไม่มีแม่แบบ · กด “เปิดไฟล์งานแต่ง / การตั้งค่า” เพื่อนำเข้าไฟล์แม่แบบ หรือวาง Prompt ของคุณเองใน “ดู / แก้ข้อความ Prompt” แล้วบันทึก</p>')+all.map((t,i)=>`<button type="button" data-i="${i}" class="${i===tplIdx?'on':''}">${t.n.replace(/[<>&"]/g,'')}${t.b?'':' <span data-del="'+i+'">✕</span>'}</button>`).join('');
   if(document.activeElement!==$('tplText'))$('tplText').value=tplWork;paintTplFields()}
 function paintTplFields(){const v=tplVals();
   $('tplFields').innerHTML=tplKeys(tplWork).map(k=>`<div><label class="hint" style="display:block;margin-bottom:4px">${k.replace(/[<>&"]/g,'')}</label><input type="text" data-k="${k.replace(/"/g,'&quot;')}" value="${(v[k]||'').replace(/"/g,'&quot;')}" placeholder="${(TPL_HINTS[k]||'').replace(/"/g,'&quot;')}" style="width:100%"></div>`).join('')}
-function selectTpl(i){tplIdx=i;tplWork=tplAll()[i].t;paintTpl()}
+function selectTpl(i){const all=tplAll();tplIdx=Math.max(0,Math.min(i,all.length-1));tplWork=all.length?all[tplIdx].t:'';paintTpl()}
 $('tplChips').onclick=e=>{const del=e.target.closest('[data-del]');if(del){const i=+del.dataset.del,u=store.get('pf_tpls',[]);u.splice(i-TPL_BUILTIN.length,1);store.set('pf_tpls',u);selectTpl(0);return}
   const b=e.target.closest('button');if(b)selectTpl(+b.dataset.i)};
 $('tplFields').addEventListener('input',e=>{const k=e.target.dataset.k;if(k==null)return;const v=tplVals();v[k]=e.target.value;store.set('pf_tplv',v)});
