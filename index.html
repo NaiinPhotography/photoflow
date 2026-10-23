@@ -123,6 +123,7 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
 .adjsec>.sl,.adjsec>.chips,.adjsec>p{margin-top:10px}
 .hslc button{display:inline-flex;align-items:center;gap:6px}.hslc i{width:12px;height:12px;border-radius:50%;display:inline-block}
 #presets button span{color:var(--muted);margin-left:4px}
+.curvebox{margin-top:10px;width:100%;max-width:360px}.curvebox canvas{width:100%;aspect-ratio:1;display:block;touch-action:none;border-radius:8px;background:var(--bg)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head><body>
@@ -490,6 +491,8 @@ function adjust(ctx,W,H,a){ // Lightroom-style basic panel: WB, exposure, tone, 
       DC=gauss(t3,sw,sh,r)}
     U=upsampler(sw,sh,W,H)}
   const vib=a.vibrance||0,sat=a.saturation||0,vg=a.vignette||0,gr=a.grain||0,hsl=a.hsl||[],hOn=hsl.some(v=>v);
+  const CV=a.curve||{},cOn=['rgb','r','g','b'].some(k=>!curveIsId(CV[k])),CM=cOn?curveLUT(CV.rgb,1024):null,CR=cOn?curveLUT(CV.r,1024):null,CG=cOn?curveLUT(CV.g,1024):null,CB=cOn?curveLUT(CV.b,1024):null;
+  const ci=v=>v<=0?0:v>=1?1023:Math.round(v*1023);
   const CEN=[0,30,60,120,180,225,270,315];let seed=24680;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/4294967296};
   const cx=W/2,cy=H/2;
   for(let y=0;y<H;y++){let r0=0,r1=0,wy=0;if(U){r0=U.y0[y]*sw;r1=r0+sw;wy=U.yw[y]}const dy=(y-cy)/(H/2);
@@ -508,6 +511,7 @@ function adjust(ctx,W,H,a){ // Lightroom-style basic panel: WB, exposure, tone, 
             const C=(1-Math.abs(2*l-1))*ss,X=C*(1-Math.abs((hh/60)%2-1)),m=l-C/2,sg=(hh/60)|0;
             [r,g,b]=sg===0?[C,X,0]:sg===1?[X,C,0]:sg===2?[0,C,X]:sg===3?[0,X,C]:sg===4?[X,0,C]:[C,0,X];r+=m;g+=m;b+=m;mx=Math.max(r,g,b);mn=Math.min(r,g,b)}}
         if(vib||sat){const gy=.2126*r+.7152*g+.0722*b,cs=mx-mn,skin=(r>g&&g>b)?.5:1;const k=Math.max(0,1+sat+vib*(1-Math.min(1,cs*1.6))*skin);r=gy+(r-gy)*k;g=gy+(g-gy)*k;b=gy+(b-gy)*k}}
+      if(cOn){r=CR[ci(CM[ci(r)])];g=CG[ci(CM[ci(g)])];b=CB[ci(CM[ci(b)])]}
       if(vg){const dx=(x-cx)/(W/2),rr=Math.sqrt(dx*dx+dy*dy)/1.4142,q=Math.min(1,Math.max(0,(rr-.35)/.65)),f=1+vg*.85*q*q*(3-2*q);r*=f;g*=f;b*=f}
       if(gr){const nz=(rnd()+rnd()-1)*gr*.09;r+=nz;g+=nz;b+=nz}
       d[i]=r*255+.5;d[i+1]=g*255+.5;d[i+2]=b*255+.5}}
@@ -582,7 +586,7 @@ if(!P.wm.sig1){Object.assign(P.wm,{mode:'logo',tint:'mono',color:'auto',size:33,
 const items=[]; let cur=-1, view='full', running=false;
 let worker=null,seq=0;const pending=new Map();
 function getWorker(){if(worker)return worker;
-  worker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC+'\n'+[geoActive,geoBase,geoZoom,warpGeo,adjActive].map(f=>f.toString()).join('\n')],{type:'text/javascript'})));
+  worker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC+'\n'+[geoActive,geoBase,geoZoom,warpGeo,adjActive,curveIsId,curveLUT].map(f=>f.toString()).join('\n')],{type:'text/javascript'})));
   worker.onmessage=e=>{const d=e.data;if(d.type==='tick')return;const cb=pending.get(d.id);if(cb){pending.delete(d.id);cb(d)}};
   return worker}
 function runWorker(msg,transfer){return new Promise((res,rej)=>{const id=++seq;pending.set(id,d=>d.ok?res(d):rej(new Error(d.error)));
@@ -738,7 +742,7 @@ async function preview(){
     if(r.before)draw($('cvBefore'),r.before);
     if(r.pick)$('faceInfo').textContent+=` · ลายน้ำ${r.pick==='dark'?'ดำ':'ขาว'}`;
     if(my!==pvRun)return;
-    draw($('cvAfter'),r.bitmap);
+    draw($('cvAfter'),r.bitmap);if($('curveSec')&&$('curveSec').open)updateHist().then(drawCurve);
     $('stage').style.aspectRatio=`${r.bitmap.width}/${r.bitmap.height}`;
     ['divider','labL','labR'].forEach(k=>$(k).hidden=false);$('toolRow').hidden=false;
     applyView();
@@ -908,9 +912,20 @@ function autoAngle(src,g){ // dominant near-horizontal / near-vertical lines -> 
 /* --- subject/background mask view --- */
 $('btnMask').onclick=()=>{showMask=!showMask;$('btnMask').classList.toggle('on',showMask);$('btnMask').textContent=showMask?'ซ่อนขอบตัวแบบ':'ดูขอบตัวแบบ';preview()};
 
-function adjActive(a){if(!a)return false;for(const k in a){if(k==='hsl'){if(a.hsl.some(v=>v))return true}else if(a[k])return true}return false}
+function curveIsId(p){return !p||p.length<2||(p.length===2&&p[0][0]===0&&p[0][1]===0&&p[1][0]===1&&p[1][1]===1)}
+function curveLUT(p,n){ // monotone cubic (no overshoot) through the points -> n entries in 0..1
+  const L=new Float32Array(n);if(curveIsId(p)){for(let i=0;i<n;i++)L[i]=i/(n-1);return L}
+  const P=p.slice().sort((a,b)=>a[0]-b[0]),k=P.length,xs=P.map(q=>q[0]),ys=P.map(q=>q[1]),d=[],m=new Array(k);
+  for(let i=0;i<k-1;i++)d.push((ys[i+1]-ys[i])/Math.max(1e-6,xs[i+1]-xs[i]));
+  m[0]=d[0];m[k-1]=d[k-2];for(let i=1;i<k-1;i++)m[i]=d[i-1]*d[i]<=0?0:(d[i-1]+d[i])/2;
+  for(let i=0;i<k-1;i++){if(d[i]===0){m[i]=m[i+1]=0;continue}const a=m[i]/d[i],b=m[i+1]/d[i],s=a*a+b*b;if(s>9){const t=3/Math.sqrt(s);m[i]=t*a*d[i];m[i+1]=t*b*d[i]}}
+  let j=0;for(let i=0;i<n;i++){const x=i/(n-1);if(x<=xs[0]){L[i]=ys[0];continue}if(x>=xs[k-1]){L[i]=ys[k-1];continue}
+    while(j<k-2&&x>xs[j+1])j++;const h=xs[j+1]-xs[j],t=(x-xs[j])/h,t2=t*t,t3=t2*t;
+    L[i]=Math.min(1,Math.max(0,(2*t3-3*t2+1)*ys[j]+(t3-2*t2+t)*h*m[j]+(-2*t3+3*t2)*ys[j+1]+(t3-t2)*h*m[j+1]))}
+  return L}
+function adjActive(a){if(!a)return false;for(const k in a){if(k==='hsl'){if(a.hsl.some(v=>v))return true}else if(k==='curve'){for(const c in a.curve)if(!curveIsId(a.curve[c]))return true}else if(a[k])return true}return false}
 /* ======================= Light & colour panel (Lightroom-style) ======================= */
-const ADJ0=()=>({exposure:0,contrast:0,highlights:0,shadows:0,whites:0,blacks:0,temp:0,tint:0,vibrance:0,saturation:0,clarity:0,dehaze:0,vignette:0,grain:0,hsl:new Array(24).fill(0)});
+const ADJ0=()=>({curve:{rgb:[[0,0],[1,1]],r:[[0,0],[1,1]],g:[[0,0],[1,1]],b:[[0,0],[1,1]]},exposure:0,contrast:0,highlights:0,shadows:0,whites:0,blacks:0,temp:0,tint:0,vibrance:0,saturation:0,clarity:0,dehaze:0,vignette:0,grain:0,hsl:new Array(24).fill(0)});
 const ADJ_SECTIONS=[['แสง',[['exposure','ความสว่าง (Exposure)'],['contrast','คอนทราสต์'],['highlights','ส่วนสว่าง (Highlights)'],['shadows','เงา (Shadows)'],['whites','จุดขาว (Whites)'],['blacks','จุดดำ (Blacks)']]],
   ['สี',[['temp','อุณหภูมิสี (เย็น ↔ อุ่น)','temp'],['tint','Tint (เขียว ↔ ชมพู)','tint'],['vibrance','ความสดสี (Vibrance)'],['saturation','ความอิ่มสี (Saturation)']]],
   ['เอฟเฟกต์',[['clarity','ความชัดลึก (Clarity)'],['dehaze','ลดหมอก (Dehaze)'],['vignette','ขอบภาพ มืด ↔ สว่าง (Vignette)'],['grain','เกรนฟิล์ม (Grain)',null,0]]]];
@@ -940,7 +955,7 @@ function paintAdj(){const a=curAdj();
   ['hslH','hslS','hslL'].forEach((id,j)=>{$(id).value=Math.round(a.hsl[hslSel*3+j]*100);$(id+'V').textContent=$(id).value});
   const it=items[cur];$('scAll').classList.toggle('on',adjScope==='all');$('scThis').classList.toggle('on',adjScope==='this');$('scThis').disabled=!it;
   $('scHint').textContent=adjScope==='this'?'ปรับเฉพาะภาพที่เลือกอยู่ ภาพอื่นใช้ค่าหลัก':(items.some(x=>x.adj)?'ค่าหลักใช้กับทุกภาพ (ยกเว้นภาพที่ปรับแยกไว้)':'ค่าหลักใช้กับทุกภาพในชุด เหมือน Copy Settings');
-  paintPresets()}
+  paintPresets();if(typeof drawCurve==='function')drawCurve()}
 function adjChanged(){if(adjScope==='this'){const it=items[cur];if(it){it.out=null;paintTray();clearTimeout(pvT);pvT=setTimeout(preview,350)}}else{store.set('pf_settings',P);changed()}}
 buildAdjUI();
 $('adjBody').addEventListener('input',e=>{const t=e.target,a=curAdj();if(t.dataset.k){a[t.dataset.k]=t.value/100;$(t.id+'V').textContent=t.value}
@@ -967,6 +982,50 @@ $('presets').onclick=e=>{const list=presetList(),del=e.target.closest('[data-del
 $('presetSave').onclick=()=>{const name=$('presetName').value.trim();if(!name){msg('ตั้งชื่อพรีเซ็ตก่อน',true);$('presetName').focus();return}
   const user=store.get('pf_presets',[]);user.push({n:name.slice(0,30),v:JSON.parse(JSON.stringify(curAdj()))});store.set('pf_presets',user);$('presetName').value='';paintPresets();msg(`บันทึกพรีเซ็ต “${name}” แล้ว`)};
 paintAdj();
+/* ======================= Tone curve (drag points, like Lightroom) ======================= */
+const CURVE_CH=[['rgb','RGB','#8b8193'],['r','แดง','#e0413a'],['g','เขียว','#3fa34d'],['b','น้ำเงิน','#3a6fe0']];
+const CURVE_PRESETS=[['เส้นตรง',null],['S อ่อน (เพิ่มมิติ)',[[0,0],[.25,.2],[.75,.81],[1,1]]],['S เข้ม',[[0,0],[.25,.16],[.75,.86],[1,1]]],['ฟิล์มยกดำ (Matte)',[[0,.08],[.25,.27],[.75,.78],[1,.97]]],['สว่างนุ่ม',[[0,0],[.4,.5],[1,1]]]];
+let curveCh='rgb',hist=null;
+function curveOf(a,ch){if(!a.curve)a.curve={};if(!a.curve[ch])a.curve[ch]=[[0,0],[1,1]];return a.curve[ch]}
+function buildCurveUI(){const sec=document.createElement('details');sec.className='adjsec';sec.id='curveSec';
+  sec.innerHTML=`<summary>เส้นโค้งโทน (Tone Curve)</summary>
+    <div class="chips" id="curveChs">${CURVE_CH.map(([k,l,c])=>`<button type="button" data-c="${k}"><i style="background:${c};width:10px;height:10px;border-radius:50%;display:inline-block;margin-right:6px"></i>${l}</button>`).join('')}</div>
+    <div class="curvebox"><canvas id="curveCv"></canvas></div>
+    <p class="hint">แตะบนเส้นเพื่อเพิ่มจุด · ลากจุดขึ้นลง · แตะจุดสองครั้งเพื่อลบ</p>
+    <div class="chips" id="curvePresets">${CURVE_PRESETS.map(([n],i)=>`<button type="button" data-i="${i}">${n}</button>`).join('')}</div>`;
+  const hs=[...$('adjBody').querySelectorAll('.adjsec')];$('adjBody').insertBefore(sec,hs[1]||null);
+  sec.addEventListener('toggle',()=>{if(sec.open){updateHist();drawCurve()}})}
+async function updateHist(){const c=$('cvAfter');if(!c.width||c.width<10){hist=null;return}
+  const s=Math.min(1,300/Math.max(c.width,c.height)),t=document.createElement('canvas');t.width=Math.round(c.width*s);t.height=Math.round(c.height*s);
+  const x=t.getContext('2d');x.drawImage(c,0,0,t.width,t.height);const d=x.getImageData(0,0,t.width,t.height).data,h=new Float32Array(64);
+  for(let i=0;i<d.length;i+=4){const v=curveCh==='rgb'?(.2126*d[i]+.7152*d[i+1]+.0722*d[i+2]):d[i+{r:0,g:1,b:2}[curveCh]];h[Math.min(63,v>>2)]++}
+  const mx=Math.max(...h.slice(1,63))||1;hist=h.map(v=>Math.min(1,v/mx))}
+function curveGeom(){const cv=$('curveCv'),r=cv.getBoundingClientRect(),dpr=window.devicePixelRatio||1,W=Math.round(r.width*dpr);if(cv.width!==W){cv.width=W;cv.height=W}return {cv,W,pad:Math.round(10*dpr),dpr}}
+function drawCurve(){const sec=$('curveSec');if(!sec||!sec.open)return;const {cv,W,pad}=curveGeom(),x=cv.getContext('2d'),S=W-2*pad,a=curAdj(),pts=curveOf(a,curveCh),col=CURVE_CH.find(c=>c[0]===curveCh)[2];
+  const css=getComputedStyle(document.documentElement),line=css.getPropertyValue('--line').trim()||'#ddd',ink=css.getPropertyValue('--muted').trim()||'#888';
+  x.clearRect(0,0,W,W);x.save();x.translate(pad,pad);
+  if(hist){x.fillStyle=line;x.beginPath();x.moveTo(0,S);hist.forEach((v,i)=>x.lineTo(i/63*S,S-v*S*.9));x.lineTo(S,S);x.fill()}
+  x.strokeStyle=line;x.lineWidth=1;for(let i=1;i<4;i++){x.beginPath();x.moveTo(i*S/4,0);x.lineTo(i*S/4,S);x.moveTo(0,i*S/4);x.lineTo(S,i*S/4);x.stroke()}
+  x.strokeRect(0,0,S,S);x.setLineDash([4,4]);x.strokeStyle=ink;x.beginPath();x.moveTo(0,S);x.lineTo(S,0);x.stroke();x.setLineDash([]);
+  const L=curveLUT(pts,256);x.strokeStyle=col;x.lineWidth=2.5*(window.devicePixelRatio||1);x.beginPath();for(let i=0;i<256;i++){const px=i/255*S,py=S-L[i]*S;i?x.lineTo(px,py):x.moveTo(px,py)}x.stroke();
+  for(const p of pts){x.beginPath();x.arc(p[0]*S,S-p[1]*S,7*(window.devicePixelRatio||1),0,Math.PI*2);x.fillStyle='#fff';x.fill();x.lineWidth=2.5*(window.devicePixelRatio||1);x.strokeStyle=col;x.stroke()}
+  x.restore();document.querySelectorAll('#curveChs button').forEach(b=>b.classList.toggle('on',b.dataset.c===curveCh))}
+(function(){buildCurveUI();const cv=$('curveCv');let drag=-1,lastTap={t:0,i:-1};
+  const toN=e=>{const {W,pad,dpr}=curveGeom(),r=cv.getBoundingClientRect(),S=W-2*pad;return [Math.min(1,Math.max(0,((e.clientX-r.left)*dpr-pad)/S)),Math.min(1,Math.max(0,1-((e.clientY-r.top)*dpr-pad)/S))]};
+  cv.addEventListener('pointerdown',e=>{e.preventDefault();const a=curAdj(),pts=curveOf(a,curveCh),[nx,ny]=toN(e),{W,pad}=curveGeom(),tol=24/(W-2*pad)*(window.devicePixelRatio||1);
+    let best=-1,bd=1e9;pts.forEach((p,i)=>{const dd=Math.hypot(p[0]-nx,p[1]-ny);if(dd<bd){bd=dd;best=i}});
+    const now=Date.now();
+    if(best>=0&&bd<tol){if(lastTap.i===best&&now-lastTap.t<350&&best>0&&best<pts.length-1){pts.splice(best,1);drag=-1;drawCurve();adjChanged();lastTap={t:0,i:-1};return}lastTap={t:now,i:best};drag=best}
+    else{const L=curveLUT(pts,1001);if(Math.abs(L[Math.round(nx*1000)]-ny)>tol*2.5&&pts.length>=2){drag=-1;return}
+      pts.push([nx,ny]);pts.sort((p,q)=>p[0]-q[0]);drag=pts.findIndex(p=>p[0]===nx&&p[1]===ny);lastTap={t:now,i:drag}}
+    cv.setPointerCapture(e.pointerId);drawCurve();adjChanged()});
+  cv.addEventListener('pointermove',e=>{if(drag<0)return;const pts=curveOf(curAdj(),curveCh),[nx,ny]=toN(e),k=pts.length;
+    let x=nx;if(drag===0)x=Math.min(nx,pts[1][0]-.02);else if(drag===k-1)x=Math.max(nx,pts[k-2][0]+.02);else x=Math.min(pts[drag+1][0]-.02,Math.max(pts[drag-1][0]+.02,nx));
+    pts[drag]=[Math.max(0,Math.min(1,x)),ny];drawCurve();adjChanged()});
+  const end=()=>{drag=-1};cv.addEventListener('pointerup',end);cv.addEventListener('pointercancel',end);
+  $('curveChs').onclick=e=>{const b=e.target.closest('button');if(!b)return;curveCh=b.dataset.c;updateHist().then(drawCurve);drawCurve()};
+  $('curvePresets').onclick=e=>{const b=e.target.closest('button');if(!b)return;const p=CURVE_PRESETS[+b.dataset.i][1],a=curAdj();curveOf(a,curveCh);a.curve[curveCh]=p?p.map(q=>q.slice()):[[0,0],[1,1]];drawCurve();adjChanged()};
+  window.addEventListener('resize',drawCurve)})();
 
 /* --- sharing & saving --- */
 function outName(it){return it.name.replace(/\.[^.]+$/,'')+'_PF.jpg'}
