@@ -284,6 +284,17 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
     </div>
   </section>
 
+  <section class="panel ctl">
+    <b style="font-size:16px">แต่งต่อบนเครื่องอื่น</b>
+    <p class="hint">เหมือน Lightroom: บันทึก<b>ไฟล์งานแต่ง</b>ไว้ใน Google Drive คู่กับภาพ แล้วเปิดบนมือถือ แท็บเล็ต หรือคอม ระบบจะใส่การแต่งทุกอย่างกลับมาให้ (ตัดภาพ ลบคน ปรับแสงสี ลายน้ำ)</p>
+    <div class="tools"><button class="btn gold" id="projSave" type="button">บันทึกงานแต่งชุดนี้</button>
+      <label class="btn" for="pfFile" style="text-align:center">เปิดไฟล์งานแต่ง / การตั้งค่า</label>
+      <input type="file" id="pfFile" accept=".txt,.json,text/plain,application/json" multiple hidden></div>
+    <p class="hint">เปิดบนเครื่องอื่น: กด <b>เปิดไฟล์งานแต่ง</b> แล้ว<b>เลือกภาพชุดเดิม</b> (ก่อนหรือหลังก็ได้) ภาพที่ชื่อตรงกันจะได้การแต่งเดิมทันที</p>
+    <div class="tools"><button class="btn" id="setSave" type="button">ส่งออกการตั้งค่า + พรีเซ็ต + ลายน้ำ</button></div>
+    <p class="hint">ใช้ครั้งเดียวต่อเครื่องใหม่: ส่งไฟล์การตั้งค่าเข้า Drive แล้วเปิดด้วยปุ่ม "เปิดไฟล์งานแต่ง / การตั้งค่า" บนเครื่องใหม่</p>
+  </section>
+
   <section class="panel">
     <h2>หลังบันทึก</h2>
     <ol class="steps">
@@ -716,7 +727,7 @@ async function addFiles(list){
       items.push({file:f,name:f.name,w:bm.width,h:bm.height,thumb:c.toDataURL('image/jpeg',.7),faces:null,out:null});bm.close&&bm.close();
     }catch(err){msg('เปิดไฟล์ '+f.name+' ไม่ได้',true)}
   }
-  if(cur<0)cur=0;paintTray();$('clearRow').hidden=!items.length;msg(`มี ${items.length} ภาพ · ปรับค่าด้านล่าง แล้วกด “ทำทุกภาพ”`);preview();loadFace();
+  if(cur<0)cur=0;const rn=applyProjectPhotos();if(rn)setTimeout(()=>msg(`ใส่การแต่งเดิมให้ ${rn} ภาพแล้ว ✓`),400);paintTray();$('clearRow').hidden=!items.length;msg(`มี ${items.length} ภาพ · ปรับค่าด้านล่าง แล้วกด “ทำทุกภาพ”`);preview();loadFace();
 }
 $('files').onchange=e=>{const l=[...e.target.files];e.target.value='';if(l.length)addFiles(l)};
 $('folder').onchange=e=>{const l=[...e.target.files];e.target.value='';if(l.length)addFiles(l)};
@@ -1028,6 +1039,41 @@ function drawCurve(){const sec=$('curveSec');if(!sec||!sec.open)return;const {cv
   window.addEventListener('resize',drawCurve)})();
 
 /* --- sharing & saving --- */
+/* ======================= edit file (continue on any device) + settings backup ======================= */
+const PROJ_KEYS=['retouchOn','smooth','sharpen','glow','wmOn','wm','outSize','layersOn','subjExp','subjSh','bgExp','bgSh','adj'];
+let pendingProject=null;
+function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+async function offerText(name,obj){ // .txt so Android can share it straight to Google Drive / Line
+  const blob=new Blob([JSON.stringify(obj)],{type:'text/plain'}),f=new File([blob],name,{type:'text/plain'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:name});return 'shared'}catch(e){if(e.name==='AbortError')return 'cancel'}}
+  dlBlob(blob,name);return 'saved'}
+function projectData(){const g={};PROJ_KEYS.forEach(k=>g[k]=P[k]);
+  return {app:'PhotoFlow',type:'project',v:1,saved:new Date().toISOString(),global:g,
+    photos:items.map(it=>{const o={name:it.name,size:it.file.size};if(it.adj)o.adj=it.adj;if(geoActive(it.geo))o.geo=it.geo;if(it.wmc)o.wmc=it.wmc;
+      if(it.erase&&it.eraseUsed)o.erase=it.erase.toDataURL('image/png');return o})}}
+function applyProjectPhotos(){if(!pendingProject)return 0;let n=0;
+  for(const it of items){if(it._restored)continue;const list=pendingProject.photos||[],ph=list.find(p=>p.name===it.name&&p.size===it.file.size)||list.find(p=>p.name===it.name);if(!ph)continue;
+    it._restored=true;n++;it.adj=ph.adj||undefined;it.geo=ph.geo||null;it.wmc=ph.wmc||null;it.out=null;
+    if(ph.erase){const img=new Image();img.onload=()=>{const c=document.createElement('canvas');c.width=img.width;c.height=img.height;c.getContext('2d').drawImage(img,0,0);
+      it.erase=c;it.eraseHist=[];it.eraseUsed=true;it.out=null;if(items[cur]===it&&mode==='compare')preview()};img.src=ph.erase}}
+  if(n){paintTray();paintAdj();preview()}return n}
+async function openPF(file){let j;try{j=JSON.parse(await file.text())}catch(e){j=null}
+  if(!j||j.app!=='PhotoFlow'){msg(`ไฟล์ ${file.name} ไม่ใช่ไฟล์ของ PhotoFlow`,true);return}
+  if(j.type==='project'){pendingProject=j;for(const k of PROJ_KEYS)if(j.global&&k in j.global)P[k]=JSON.parse(JSON.stringify(j.global[k]));
+    if(!P.adj.curve)P.adj.curve=ADJ0().curve;store.set('pf_settings',P);paintSettings();paintAdj();items.forEach(it=>it.out=null);
+    const n=applyProjectPhotos(),total=(j.photos||[]).length;
+    msg(n?`เปิดงานแต่งแล้ว ✓ ภาพตรงกัน ${n}/${total} ภาพ แต่งต่อได้เลย`:`เปิดงานแต่งแล้ว ✓ เลือกภาพชุดเดิม ${total} ภาพ ระบบจะใส่การแต่งให้เอง`);changed();return}
+  if(j.type==='settings'){const s=j.settings||{};for(const k of PROJ_KEYS)if(k in s)P[k]=s[k];if(!P.adj.curve)P.adj.curve=ADJ0().curve;store.set('pf_settings',P);
+    const user=store.get('pf_presets',[]);for(const p of j.presets||[])if(!user.some(u=>u.n===p.n))user.push(p);store.set('pf_presets',user);
+    for(const l of j.logos||[])if(!logos.some(x=>x.url===l.url))logos.push(l);store.set('pf_logos',logos);
+    paintSettings();paintAdj();changed();msg(`นำเข้าการตั้งค่าแล้ว ✓ พรีเซ็ต ${(j.presets||[]).length} · ลายน้ำ ${(j.logos||[]).length}`)}}
+$('projSave').onclick=async()=>{if(!items.length){msg('ยังไม่มีภาพในงานนี้',true);return}
+  const r=await offerText(`PhotoFlow งานแต่ง ${today()}.txt`,projectData());if(r!=='cancel')msg(r==='shared'?'ส่งไฟล์งานแต่งแล้ว ✓ เก็บไว้คู่กับภาพใน Google Drive':'บันทึกไฟล์งานแต่งในโฟลเดอร์ Download แล้ว ✓')};
+$('setSave').onclick=async()=>{const s={};PROJ_KEYS.forEach(k=>s[k]=P[k]);
+  const r=await offerText(`PhotoFlow การตั้งค่า ${today()}.txt`,{app:'PhotoFlow',type:'settings',v:1,saved:new Date().toISOString(),settings:s,presets:store.get('pf_presets',[]),logos});
+  if(r!=='cancel')msg('ส่งออกการตั้งค่าและพรีเซ็ตแล้ว ✓')};
+$('pfFile').onchange=async e=>{const fs=[...e.target.files];e.target.value='';for(const f of fs)await openPF(f)};
+
 function outName(it){return it.name.replace(/\.[^.]+$/,'')+'_PF.jpg'}
 function doneItems(){return items.filter(x=>x.out)}
 function dlBlob(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
