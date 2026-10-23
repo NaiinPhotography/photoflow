@@ -117,6 +117,12 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
 .tools{display:flex;gap:8px;flex-wrap:wrap}.tools .btn{flex:1 1 auto}
 .btn.on{background:var(--accent-soft);border-color:var(--accent)}
 .sub-h{font-size:13px;font-weight:600;color:var(--muted);margin:4px 0 -6px}
+.adjsec{border-top:1px solid var(--line);padding-top:8px}
+.adjsec summary{cursor:pointer;font-weight:600;padding:6px 0;list-style:none;display:flex;justify-content:space-between}
+.adjsec summary::after{content:"＋";color:var(--muted)}.adjsec[open] summary::after{content:"−"}
+.adjsec>.sl,.adjsec>.chips,.adjsec>p{margin-top:10px}
+.hslc button{display:inline-flex;align-items:center;gap:6px}.hslc i{width:12px;height:12px;border-radius:50%;display:inline-block}
+#presets button span{color:var(--muted);margin-left:4px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head><body>
@@ -194,6 +200,17 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
       <p class="hint">ส่วนที่ขยายจะเติมจากสีและเนื้อภาพรอบขอบ เหมาะกับฉากหลังเบลอ ขยายได้ไม่เกินประมาณ 30% ต่อด้าน</p>
       <div class="tools"><button class="btn" id="btnCropReset" type="button">รีเซ็ต</button><button class="btn" id="btnCropCancel" type="button">ยกเลิก</button><button class="btn primary" id="btnCropDone" type="button">เสร็จ</button></div>
     </div>
+  </section>
+
+  <section class="panel ctl">
+    <div class="row" style="justify-content:space-between"><b style="font-size:16px">ปรับแสงและสี</b>
+      <div class="tools" style="flex:0 0 auto"><button class="btn" id="adjAuto" type="button">อัตโนมัติ</button><button class="btn" id="adjReset" type="button">รีเซ็ต</button></div></div>
+    <div class="seg" role="group" aria-label="ใช้กับ"><button id="scAll" type="button" class="on">ทุกภาพ</button><button id="scThis" type="button">เฉพาะภาพนี้</button></div>
+    <p class="hint" id="scHint"></p>
+    <div id="adjBody"></div>
+    <div class="adjsec"><p class="sub-h" style="margin:6px 0 8px">พรีเซ็ต</p><div class="chips" id="presets"></div>
+      <div class="row" style="margin-top:8px"><input type="text" id="presetName" placeholder="ชื่อ เช่น ชุดไทยในวัด" aria-label="ชื่อพรีเซ็ต"><button class="btn" id="presetSave" type="button">บันทึกค่าปัจจุบัน</button></div></div>
+    <p class="hint">แตะสองครั้งที่แถบเลื่อนเพื่อคืนค่าเป็น 0</p>
   </section>
 
   <section class="panel ctl">
@@ -452,13 +469,58 @@ function applyGeo(cv,ctx,g){ // returns new {cv,ctx}
   if(r.mask)inpaint(nctx,ncv.width,ncv.height,{w:ncv.width,h:ncv.height,a:r.mask},.006);
   return {cv:ncv,ctx:nctx}}
 
-onmessage=async e=>{const {id,bitmap,faces,p,logo,maxEdge,quality,want,seg,er,geo}=e.data;
+function adjust(ctx,W,H,a){ // Lightroom-style basic panel: WB, exposure, tone, presence, HSL, effects
+  const n=W*H,img=ctx.getImageData(0,0,W,H),d=img.data;
+  const lin=new Float32Array(256);for(let i=0;i<256;i++){const v=i/255;lin[i]=v<=.04045?v/12.92:Math.pow((v+.055)/1.055,2.4)}
+  const toS=v=>v<=.0031308?12.92*v:1.055*Math.pow(v,1/2.4)-.055,ex=Math.pow(2,(a.exposure||0)*2),t=a.temp||0,ti=a.tint||0;
+  const gain=[ex*(1+.22*t)*(1+.07*ti),ex*(1-.12*ti),ex*(1-.22*t)*(1+.07*ti)];
+  const IN=[0,1,2].map(c=>{const L=new Float32Array(256);for(let i=0;i<256;i++){let v=lin[i]*gain[c];if(v>.8)v=.8+.2*(1-Math.exp(-(v-.8)/.2));L[i]=toS(Math.min(1,v))}return L});
+  const c=a.contrast||0,h=a.highlights||0,s=a.shadows||0,wh=a.whites||0,bl=a.blacks||0,T=new Float32Array(1025);
+  for(let i=0;i<=1024;i++){let L=i/1024;L+=s*1.1*L*(1-L)*(1-L);L+=h*1.1*L*L*(1-L);L+=wh*.3*L*L*L;L+=bl*.25*(1-L)*(1-L)*(1-L);
+    L=Math.min(1.05,Math.max(0,L));const sc=L<.5?2*L*L:1-2*(1-L)*(1-L);L=c>=0?L+c*.75*(sc-L):L+c*.5*(L-.5);T[i]=Math.min(1,Math.max(0,L))}
+  // low-res helpers for clarity (local contrast) and dehaze (dark channel)
+  const cl=a.clarity||0,dz=a.dehaze||0;let sw=0,sh=0,BL=null,DC=null,U=null;
+  if(cl||dz){const f=Math.min(1,600/Math.max(W,H));sw=Math.max(2,Math.round(W*f));sh=Math.max(2,Math.round(H*f));
+    const sc=new OffscreenCanvas(sw,sh),sx=sc.getContext('2d',{willReadFrequently:true});sx.drawImage(ctx.canvas,0,0,sw,sh);const sd=sx.getImageData(0,0,sw,sh).data;
+    const Ls=new Float32Array(sw*sh),Ds=new Float32Array(sw*sh);for(let i=0;i<sw*sh;i++){const r=sd[i*4]/255,g=sd[i*4+1]/255,b=sd[i*4+2]/255;Ls[i]=.2126*r+.7152*g+.0722*b;Ds[i]=Math.min(r,g,b)}
+    if(cl)BL=gauss(Ls,sw,sh,Math.max(2,Math.max(sw,sh)/80));
+    if(dz){const r=Math.max(2,Math.round(Math.max(sw,sh)/60)),t2=new Float32Array(sw*sh),t3=new Float32Array(sw*sh);
+      for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){let m=1;for(let k=Math.max(0,x-r);k<=Math.min(sw-1,x+r);k++)m=Math.min(m,Ds[y*sw+k]);t2[y*sw+x]=m}
+      for(let x=0;x<sw;x++)for(let y=0;y<sh;y++){let m=1;for(let k=Math.max(0,y-r);k<=Math.min(sh-1,y+r);k++)m=Math.min(m,t2[k*sw+x]);t3[y*sw+x]=m}
+      DC=gauss(t3,sw,sh,r)}
+    U=upsampler(sw,sh,W,H)}
+  const vib=a.vibrance||0,sat=a.saturation||0,vg=a.vignette||0,gr=a.grain||0,hsl=a.hsl||[],hOn=hsl.some(v=>v);
+  const CEN=[0,30,60,120,180,225,270,315];let seed=24680;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/4294967296};
+  const cx=W/2,cy=H/2;
+  for(let y=0;y<H;y++){let r0=0,r1=0,wy=0;if(U){r0=U.y0[y]*sw;r1=r0+sw;wy=U.yw[y]}const dy=(y-cy)/(H/2);
+    for(let x=0;x<W;x++){const i=(y*W+x)*4;let r=IN[0][d[i]],g=IN[1][d[i+1]],b=IN[2][d[i+2]];
+      const Lm=.2126*r+.7152*g+.0722*b;let L2=T[Math.min(1024,Math.round(Lm*1024))];
+      let fx=0;if(U){const xi=U.x0[x];fx=U.xw[x];
+        if(BL){const bl2=(BL[r0+xi]*(1-fx)+BL[r0+xi+1]*fx)*(1-wy)+(BL[r1+xi]*(1-fx)+BL[r1+xi+1]*fx)*wy;L2+=cl*.9*(Lm-bl2)*4*L2*(1-L2)}}
+      const dL=L2-Lm,rat=L2/Math.max(Lm,.004);r=(r*rat+r+dL)*.5;g=(g*rat+g+dL)*.5;b=(b*rat+b+dL)*.5;
+      if(DC){const xi=U.x0[x],dc=(DC[r0+xi]*(1-fx)+DC[r0+xi+1]*fx)*(1-wy)+(DC[r1+xi]*(1-fx)+DC[r1+xi+1]*fx)*wy;
+        if(dz>0){const am=Math.min(.6,dz*.75*dc);r=(r-am)/(1-am);g=(g-am)/(1-am);b=(b-am)/(1-am)}else{const am=-dz*.45;r+=am*(.85-r);g+=am*(.85-g);b+=am*(.87-b)}}
+      if(hOn||vib||sat){let mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+        if(hOn&&mx-mn>.004){let l=(mx+mn)/2,ds=mx-mn,ss=ds/(1-Math.abs(2*l-1)+1e-6),hh;
+          if(mx===r)hh=60*(((g-b)/ds)%6);else if(mx===g)hh=60*((b-r)/ds+2);else hh=60*((r-g)/ds+4);if(hh<0)hh+=360;
+          let dh=0,dsat=0,dl=0;for(let k=0;k<8;k++){let dd=Math.abs(hh-CEN[k]);if(dd>180)dd=360-dd;const wgt=Math.max(0,1-dd/40);if(wgt){dh+=wgt*hsl[k*3];dsat+=wgt*hsl[k*3+1];dl+=wgt*hsl[k*3+2]}}
+          if(dh||dsat||dl){hh=(hh+dh*30+360)%360;ss=Math.min(1,Math.max(0,ss*(1+dsat)));l=Math.min(1,Math.max(0,l+dl*.3*Math.min(1,ss*1.5)));
+            const C=(1-Math.abs(2*l-1))*ss,X=C*(1-Math.abs((hh/60)%2-1)),m=l-C/2,sg=(hh/60)|0;
+            [r,g,b]=sg===0?[C,X,0]:sg===1?[X,C,0]:sg===2?[0,C,X]:sg===3?[0,X,C]:sg===4?[X,0,C]:[C,0,X];r+=m;g+=m;b+=m;mx=Math.max(r,g,b);mn=Math.min(r,g,b)}}
+        if(vib||sat){const gy=.2126*r+.7152*g+.0722*b,cs=mx-mn,skin=(r>g&&g>b)?.5:1;const k=Math.max(0,1+sat+vib*(1-Math.min(1,cs*1.6))*skin);r=gy+(r-gy)*k;g=gy+(g-gy)*k;b=gy+(b-gy)*k}}
+      if(vg){const dx=(x-cx)/(W/2),rr=Math.sqrt(dx*dx+dy*dy)/1.4142,q=Math.min(1,Math.max(0,(rr-.35)/.65)),f=1+vg*.85*q*q*(3-2*q);r*=f;g*=f;b*=f}
+      if(gr){const nz=(rnd()+rnd()-1)*gr*.09;r+=nz;g+=nz;b+=nz}
+      d[i]=r*255+.5;d[i+1]=g*255+.5;d[i+2]=b*255+.5}}
+  ctx.putImageData(img,0,0)}
+
+onmessage=async e=>{const {id,bitmap,faces,p,logo,maxEdge,quality,want,seg,er,geo,adj}=e.data;
   try{
     let W=bitmap.width,H=bitmap.height;
     let cv=new OffscreenCanvas(W,H),ctx=cv.getContext('2d',{willReadFrequently:true});ctx.drawImage(bitmap,0,0);bitmap.close&&bitmap.close();
     const gOn=geoActive(geo);let before=null;
     if(want==='bitmap'&&(gOn||er))before=ctx.getImageData(0,0,W,H);
     if(er)inpaint(ctx,W,H,er,.012);
+    if(adj)adjust(ctx,W,H,adj);
     if(seg&&(p.layersOn||p.showMask))toneLayers(ctx,W,H,seg,er,p);
     const fs=Math.min(1,1000/Math.max(W,H)),sw=Math.max(1,Math.round(W*fs)),sh=Math.max(1,Math.round(H*fs));
     const scv=new OffscreenCanvas(sw,sh),sctx=scv.getContext('2d',{willReadFrequently:true});sctx.imageSmoothingQuality='high';sctx.drawImage(cv,0,0,sw,sh);
@@ -520,7 +582,7 @@ if(!P.wm.sig1){Object.assign(P.wm,{mode:'logo',tint:'mono',color:'auto',size:33,
 const items=[]; let cur=-1, view='full', running=false;
 let worker=null,seq=0;const pending=new Map();
 function getWorker(){if(worker)return worker;
-  worker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC+'\n'+[geoActive,geoBase,geoZoom,warpGeo].map(f=>f.toString()).join('\n')],{type:'text/javascript'})));
+  worker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC+'\n'+[geoActive,geoBase,geoZoom,warpGeo,adjActive].map(f=>f.toString()).join('\n')],{type:'text/javascript'})));
   worker.onmessage=e=>{const d=e.data;if(d.type==='tick')return;const cb=pending.get(d.id);if(cb){pending.delete(d.id);cb(d)}};
   return worker}
 function runWorker(msg,transfer){return new Promise((res,rej)=>{const id=++seq;pending.set(id,d=>d.ok?res(d):rej(new Error(d.error)));
@@ -635,7 +697,7 @@ function paintTray(){
   $('btnRun').disabled=!n||running;$('btnRun').textContent=n?`ทำทุกภาพ (${n})`:'ทำทุกภาพ';
   $('btnSave').disabled=!done||running;$('btnZip').disabled=!done||running;$('btnDl').disabled=!done||running;
 }
-$('tray').onclick=e=>{const b=e.target.closest('.thumb');if(!b)return;if(mode!=='compare')setMode('compare');cur=+b.dataset.i;paintTray();paintPer();preview()};
+$('tray').onclick=e=>{const b=e.target.closest('.thumb');if(!b)return;if(mode!=='compare')setMode('compare');cur=+b.dataset.i;if(typeof paintAdj==='function')setTimeout(paintAdj);paintTray();paintPer();preview()};
 async function addFiles(list){
   const fs=[...list].filter(f=>/\.(jpe?g|png|webp)$/i.test(f.name)||/^image\/(jpeg|png|webp)$/.test(f.type))
     .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
@@ -760,6 +822,7 @@ async function extrasFor(it){const x={},tr=[];
   if(P.layersOn||showMask){try{const s=await segOf(it);x.seg={w:s.w,h:s.h,m:s.m.slice()};tr.push(x.seg.m.buffer)}catch(e){}}
   const er=eraseData(it);if(er){x.er=er;tr.push(er.a.buffer)}
   if(geoActive(it.geo))x.geo=it.geo;
+  const ad=adjFor(it);if(adjActive(ad))x.adj=ad;
   return {x,tr}}
 function setMode(m){mode=m;const cmp=m==='compare';$('stage').style.touchAction=cmp?'pan-y':'none';
   ['cvAfter'].forEach(k=>$(k).hidden=!cmp);['divider','labL','labR'].forEach(k=>$(k).hidden=!cmp||!items.length);
@@ -844,6 +907,66 @@ function autoAngle(src,g){ // dominant near-horizontal / near-vertical lines -> 
   const a=best/4-10;return Math.abs(a)<.2?0:Math.round(-a*10)/10}
 /* --- subject/background mask view --- */
 $('btnMask').onclick=()=>{showMask=!showMask;$('btnMask').classList.toggle('on',showMask);$('btnMask').textContent=showMask?'ซ่อนขอบตัวแบบ':'ดูขอบตัวแบบ';preview()};
+
+function adjActive(a){if(!a)return false;for(const k in a){if(k==='hsl'){if(a.hsl.some(v=>v))return true}else if(a[k])return true}return false}
+/* ======================= Light & colour panel (Lightroom-style) ======================= */
+const ADJ0=()=>({exposure:0,contrast:0,highlights:0,shadows:0,whites:0,blacks:0,temp:0,tint:0,vibrance:0,saturation:0,clarity:0,dehaze:0,vignette:0,grain:0,hsl:new Array(24).fill(0)});
+const ADJ_SECTIONS=[['แสง',[['exposure','ความสว่าง (Exposure)'],['contrast','คอนทราสต์'],['highlights','ส่วนสว่าง (Highlights)'],['shadows','เงา (Shadows)'],['whites','จุดขาว (Whites)'],['blacks','จุดดำ (Blacks)']]],
+  ['สี',[['temp','อุณหภูมิสี (เย็น ↔ อุ่น)','temp'],['tint','Tint (เขียว ↔ ชมพู)','tint'],['vibrance','ความสดสี (Vibrance)'],['saturation','ความอิ่มสี (Saturation)']]],
+  ['เอฟเฟกต์',[['clarity','ความชัดลึก (Clarity)'],['dehaze','ลดหมอก (Dehaze)'],['vignette','ขอบภาพ มืด ↔ สว่าง (Vignette)'],['grain','เกรนฟิล์ม (Grain)',null,0]]]];
+const HSL_COLORS=[['แดง','#e0413a'],['ส้ม','#ef8a2d'],['เหลือง','#e9c834'],['เขียว','#4caf50'],['ฟ้า','#35b9c9'],['น้ำเงิน','#3a6fe0'],['ม่วง','#8a55d6'],['บานเย็น','#d64fa8']];
+const BUILTIN_PRESETS=[
+  ['ผิวสว่างใส',{exposure:.08,highlights:-.3,shadows:.3,vibrance:.15,hsl:{1:[0,-.15,.35]}}],
+  ['โทนอุ่นทอง',{temp:.15,contrast:.12,vibrance:.2,vignette:-.2,hsl:{1:[0,0,.15],2:[0,.15,0]}}],
+  ['ฟิล์มนุ่ม',{contrast:-.15,blacks:.25,highlights:-.25,saturation:-.1,grain:.3}],
+  ['ขาวดำคลาสสิก',{saturation:-1,contrast:.25,clarity:.15,grain:.2}]];
+P.adj=Object.assign(ADJ0(),P.adj||{});if(!Array.isArray(P.adj.hsl)||P.adj.hsl.length!==24)P.adj.hsl=new Array(24).fill(0);
+let adjScope='all',hslSel=1;
+function adjFor(it){return (it&&it.adj)||P.adj}
+function curAdj(){const it=items[cur];return adjScope==='this'&&it?(it.adj||(it.adj=JSON.parse(JSON.stringify(P.adj)))):P.adj}
+function buildAdjUI(){let h='';
+  for(const [title,list] of ADJ_SECTIONS){h+=`<details class="adjsec" ${title==='แสง'?'open':''}><summary>${title}</summary>`;
+    for(const [k,label,cls,min] of list)h+=`<div class="sl"><label for="a_${k}">${label} <output id="a_${k}V"></output></label><input type="range" class="${cls||''}" id="a_${k}" data-k="${k}" min="${min===0?0:-100}" max="100"></div>`;
+    h+='</details>'}
+  h+=`<details class="adjsec"><summary>สีรายช่อง (HSL)</summary><div class="chips hslc" id="hslChips">${HSL_COLORS.map(([n,c],i)=>`<button type="button" data-i="${i}"><i style="background:${c}"></i>${n}</button>`).join('')}</div>
+    <div class="sl"><label for="hslH">เฉดสี <output id="hslHV"></output></label><input type="range" id="hslH" data-j="0" min="-100" max="100"></div>
+    <div class="sl"><label for="hslS">ความอิ่มสี <output id="hslSV"></output></label><input type="range" id="hslS" data-j="1" min="-100" max="100"></div>
+    <div class="sl"><label for="hslL">ความสว่าง <output id="hslLV"></output></label><input type="range" id="hslL" data-j="2" min="-100" max="100"></div>
+    <p class="hint">ผิวคนอยู่ในช่อง <b>ส้ม</b>: เพิ่มความสว่างให้ผิวใส ลดความอิ่มสีให้ผิวนวล</p></details>`;
+  $('adjBody').innerHTML=h}
+function paintAdj(){const a=curAdj();
+  for(const [,list] of ADJ_SECTIONS)for(const [k] of list){const el=$('a_'+k);el.value=Math.round(a[k]*100);$('a_'+k+'V').textContent=el.value}
+  document.querySelectorAll('#hslChips button').forEach(b=>b.classList.toggle('on',+b.dataset.i===hslSel));
+  ['hslH','hslS','hslL'].forEach((id,j)=>{$(id).value=Math.round(a.hsl[hslSel*3+j]*100);$(id+'V').textContent=$(id).value});
+  const it=items[cur];$('scAll').classList.toggle('on',adjScope==='all');$('scThis').classList.toggle('on',adjScope==='this');$('scThis').disabled=!it;
+  $('scHint').textContent=adjScope==='this'?'ปรับเฉพาะภาพที่เลือกอยู่ ภาพอื่นใช้ค่าหลัก':(items.some(x=>x.adj)?'ค่าหลักใช้กับทุกภาพ (ยกเว้นภาพที่ปรับแยกไว้)':'ค่าหลักใช้กับทุกภาพในชุด เหมือน Copy Settings');
+  paintPresets()}
+function adjChanged(){if(adjScope==='this'){const it=items[cur];if(it){it.out=null;paintTray();clearTimeout(pvT);pvT=setTimeout(preview,350)}}else{store.set('pf_settings',P);changed()}}
+buildAdjUI();
+$('adjBody').addEventListener('input',e=>{const t=e.target,a=curAdj();if(t.dataset.k){a[t.dataset.k]=t.value/100;$(t.id+'V').textContent=t.value}
+  else if(t.dataset.j!=null){a.hsl[hslSel*3+ +t.dataset.j]=t.value/100;$(t.id+'V').textContent=t.value}else return;adjChanged()});
+$('adjBody').addEventListener('dblclick',e=>{const t=e.target;if(t.type!=='range')return;t.value=0;t.dispatchEvent(new Event('input',{bubbles:true}))});
+$('adjBody').addEventListener('click',e=>{const b=e.target.closest('#hslChips button');if(!b)return;hslSel=+b.dataset.i;paintAdj()});
+$('scAll').onclick=()=>{adjScope='all';paintAdj()};
+$('scThis').onclick=()=>{adjScope='this';curAdj();paintAdj()};
+$('adjReset').onclick=()=>{const it=items[cur];if(adjScope==='this'&&it){delete it.adj;adjScope='all';it.out=null;paintTray();preview()}else{P.adj=ADJ0();store.set('pf_settings',P);changed()}paintAdj();msg('รีเซ็ตการปรับแสงและสีแล้ว')};
+$('adjAuto').onclick=async()=>{const it=items[cur];if(!it){msg('เลือกภาพก่อน',true);return}const pv=await pvOf(it);const s=Math.min(1,300/Math.max(pv.width,pv.height)),c=document.createElement('canvas');
+  c.width=Math.round(pv.width*s);c.height=Math.round(pv.height*s);const x=c.getContext('2d');x.drawImage(pv,0,0,c.width,c.height);const d=x.getImageData(0,0,c.width,c.height).data,hist=new Float32Array(256);let sum=0,n=0;
+  for(let i=0;i<d.length;i+=4){const L=Math.round(.2126*d[i]+.7152*d[i+1]+.0722*d[i+2]);hist[L]++;sum+=L;n++}
+  const pct=q=>{let acc=0;for(let i=0;i<256;i++){acc+=hist[i];if(acc>=q*n)return i/255}return 1},mean=sum/n/255,p2=pct(.02),p98=pct(.98),a=curAdj(),cl=v=>Math.round(Math.max(-1,Math.min(1,v))*100)/100;
+  a.exposure=cl(Math.log2(.46/Math.max(.05,mean))/2.4);a.whites=cl((.96-p98)*2.2);a.blacks=cl((p2-.03)*-2.5);a.highlights=p98>.92?-.25:0;a.shadows=mean<.4?.25:.1;a.vibrance=Math.max(a.vibrance,.1);
+  paintAdj();adjChanged();msg('ปรับแสงอัตโนมัติแล้ว · เลื่อนแต่งต่อได้')};
+/* presets */
+function presetList(){return BUILTIN_PRESETS.map(([n,v])=>({n,v,b:1})).concat(store.get('pf_presets',[]))}
+function presetAdj(v){const a=ADJ0();for(const k in v){if(k==='hsl'){if(Array.isArray(v.hsl))a.hsl=v.hsl.slice();else for(const i in v.hsl)v.hsl[i].forEach((x,j)=>a.hsl[i*3+j]=x)}else a[k]=v[k]}return a}
+function paintPresets(){$('presets').innerHTML=presetList().map((p,i)=>`<button type="button" data-i="${i}">${p.n.replace(/[<>&"]/g,'')}${p.b?'':' <span data-del="'+i+'">✕</span>'}</button>`).join('')}
+$('presets').onclick=e=>{const list=presetList(),del=e.target.closest('[data-del]');
+  if(del){const i=+del.dataset.del,user=store.get('pf_presets',[]);user.splice(i-BUILTIN_PRESETS.length,1);store.set('pf_presets',user);paintPresets();return}
+  const b=e.target.closest('button');if(!b)return;const p=list[+b.dataset.i],a=presetAdj(p.v);
+  if(adjScope==='this'&&items[cur])items[cur].adj=a;else P.adj=a;paintAdj();adjChanged();msg(`ใช้พรีเซ็ต “${p.n}” แล้ว`)};
+$('presetSave').onclick=()=>{const name=$('presetName').value.trim();if(!name){msg('ตั้งชื่อพรีเซ็ตก่อน',true);$('presetName').focus();return}
+  const user=store.get('pf_presets',[]);user.push({n:name.slice(0,30),v:JSON.parse(JSON.stringify(curAdj()))});store.set('pf_presets',user);$('presetName').value='';paintPresets();msg(`บันทึกพรีเซ็ต “${name}” แล้ว`)};
+paintAdj();
 
 /* --- sharing & saving --- */
 function outName(it){return it.name.replace(/\.[^.]+$/,'')+'_PF.jpg'}
