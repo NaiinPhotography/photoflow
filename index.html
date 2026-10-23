@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="th"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PhotoFlow</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#231c27">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Ms+Madi&family=Herr+Von+Muellerhoff&family=Great+Vibes&family=Anuphan:wght@400;500;600&family=Noto+Serif+Thai:wght@600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one phone-width column — photos tray, live before/after, controls, then a sticky action bar. */
+:root{
+  --bg:#f3f1f4; --surface:#ffffff; --ink:#231c27; --muted:#6f6676; --line:#e2dde6;
+  --accent:#9a6a1f; --accent-soft:#f3e7d1; --ok:#2f7a55; --danger:#a33a32; --veil:rgba(35,28,39,.62);
+  --f-display:"Noto Serif Thai","Leelawadee UI",serif;
+  --f-body:"Anuphan","Noto Sans Thai","Leelawadee UI",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#17131a; --surface:#221d26; --ink:#f1ecf3; --muted:#a79dae; --line:#373040;
+  --accent:#d9a85a; --accent-soft:#3a2f1f; --ok:#6cc296; --danger:#e07a70; --veil:rgba(0,0,0,.7); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17131a; --surface:#221d26; --ink:#f1ecf3; --muted:#a79dae; --line:#373040;
+  --accent:#d9a85a; --accent-soft:#3a2f1f; --ok:#6cc296; --danger:#e07a70; --veil:rgba(0,0,0,.7); color-scheme:dark}
+*{box-sizing:border-box}
+html{padding-top:env(safe-area-inset-top,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font:15px/1.55 var(--f-body);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 120px}
+.wrap{max-width:620px;margin:0 auto;display:grid;gap:18px}
+header{padding-top:18px;display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+h1{font:600 24px/1.2 var(--f-display);margin:0;letter-spacing:.2px}
+h1 em{font-style:normal;color:var(--accent)}
+.sub{color:var(--muted);font-size:13px}
+h2{font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 10px;font-weight:600}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+button,select,input{font:inherit;color:inherit}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;cursor:pointer;min-height:44px}
+.btn:focus-visible,.pick:focus-within,input:focus-visible,select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink);font-weight:600}
+.btn.gold{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.btn:disabled{opacity:.45;cursor:default}
+.pick{display:flex;align-items:center;justify-content:center;gap:10px;border:1.5px dashed var(--accent);background:var(--accent-soft);
+  border-radius:12px;padding:16px;font-weight:600;cursor:pointer;color:var(--ink)}
+.pick input{position:absolute;width:1px;height:1px;opacity:0}
+.picks{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pick{position:relative;text-align:center}
+.tray{display:flex;gap:8px;overflow-x:auto;padding:10px 0 2px;scrollbar-width:thin}
+.tray:empty{display:none}
+.thumb{position:relative;flex:0 0 64px;height:88px;border-radius:8px;overflow:hidden;border:2px solid transparent;padding:0;background:var(--line);cursor:pointer}
+.thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.on{border-color:var(--accent)}
+.thumb .st{position:absolute;right:3px;bottom:3px;min-width:18px;height:18px;border-radius:9px;font-size:11px;line-height:18px;color:#fff;background:var(--veil);padding:0 4px}
+.thumb .st.done{background:var(--ok)}
+.stage{position:relative;border-radius:12px;overflow:hidden;background:var(--line);aspect-ratio:2/3;max-width:100%;touch-action:pan-y}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;transform-origin:50% 50%;transition:transform .35s ease}
+.stage .after{clip-path:inset(0 0 0 var(--cut,50%))}
+.stage .divider{position:absolute;top:0;bottom:0;left:var(--cut,50%);width:2px;background:#fff;box-shadow:0 0 0 1px rgba(0,0,0,.25);pointer-events:none}
+.stage .divider::after{content:"⇆";position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:34px;height:34px;border-radius:50%;background:#fff;color:#231c27;display:grid;place-items:center;font-size:16px}
+.stage .lab{position:absolute;top:10px;font-size:12px;padding:2px 9px;border-radius:20px;background:var(--veil);color:#fff}
+.stage .l{left:10px}.stage .r{right:10px}
+.stage .empty{position:absolute;inset:0;display:grid;place-content:center;text-align:center;padding:24px;color:var(--muted);gap:6px}
+.stage .empty b{color:var(--ink);font-size:16px}
+.stage .busy{position:absolute;inset:auto 10px 10px auto;font-size:12px;padding:3px 10px;border-radius:20px;background:var(--veil);color:#fff}
+.stagebar{display:flex;gap:8px;align-items:center;justify-content:space-between;margin-top:10px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.seg button{border:0;background:none;padding:8px 12px;min-height:40px;cursor:pointer;color:var(--muted)}
+.seg button.on{background:var(--ink);color:var(--bg)}
+.ctl{display:grid;gap:14px}
+.sl label{display:flex;justify-content:space-between;font-size:14px}
+.sl output{font-variant-numeric:tabular-nums;color:var(--muted)}
+input[type=range]{width:100%;accent-color:var(--accent);height:32px}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.row>*{min-width:0}
+.sw{display:flex;align-items:center;justify-content:space-between;gap:12px;font-weight:600}
+.sw input{width:22px;height:22px;accent-color:var(--accent)}
+input[type=text]{flex:1;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;min-height:44px}
+input[type=color]{width:48px;height:44px;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:4px}
+select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px;min-height:44px}
+.grid9{display:grid;grid-template-columns:repeat(3,40px);gap:4px}
+.grid9 button{height:30px;border:1px solid var(--line);background:var(--bg);border-radius:6px;cursor:pointer;padding:0}
+.grid9 button.on{background:var(--accent);border-color:var(--accent)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.wm-logo{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;width:100%}
+.lib .it{position:relative;height:64px;border-radius:8px;border:2px solid var(--line);cursor:pointer;padding:6px 8px;
+  background:repeating-conic-gradient(#8d8494 0 25%,#7d7484 0 50%) 0 0/14px 14px;display:grid;place-items:center}
+.lib .it.on{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
+.lib .it img{max-width:100%;max-height:100%;object-fit:contain}
+.lib .x{position:absolute;top:-8px;right:-8px;width:24px;height:24px;border-radius:12px;border:0;background:var(--ink);color:var(--bg);font-size:13px;cursor:pointer}
+.dock{position:fixed;left:0;right:0;bottom:0;z-index:5;background:var(--surface);border-top:1px solid var(--line);
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  padding-top:12px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px))}
+.dock .in{max-width:620px;margin:0 auto;display:grid;gap:8px}
+.dock .acts{display:flex;gap:8px}
+.dock .acts .btn{flex:1;white-space:nowrap;padding:10px 8px}
+.dock .acts #btnRun{flex:1.7}
+.prog{height:6px;border-radius:3px;background:var(--line);overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:var(--accent);transition:width .3s}
+.msg{font-size:13px;color:var(--muted);min-height:1.2em}
+.msg.err{color:var(--danger)}
+.steps{margin:0;padding-left:20px;color:var(--muted);font-size:14px;display:grid;gap:4px}
+.steps b{color:var(--ink);font-weight:600}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head><body>
+
+<div class="wrap">
+  <header>
+    <h1>Photo<em>Flow</em></h1>
+    <span class="sub">เกลาผิว · ลายน้ำ · บันทึก</span>
+  </header>
+
+  <section class="panel">
+    <h2>ภาพที่แต่งจาก Lightroom</h2>
+    <div class="picks">
+      <label class="pick" for="files">
+        <input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+        <span>＋ เลือกภาพ</span>
+      </label>
+      <label class="pick" for="folder" id="folderBtn">
+        <input id="folder" type="file" webkitdirectory multiple>
+        <span>📁 เลือกทั้งโฟลเดอร์</span>
+      </label>
+    </div>
+    <p class="hint" style="margin-top:8px">เลือกภาพ: แตะค้างที่ภาพแรก แล้วแตะภาพอื่นเพื่อเลือกหลายภาพ · เลือกทั้งโฟลเดอร์: เปิดโฟลเดอร์ที่ export จาก Lightroom แล้วกด “ใช้โฟลเดอร์นี้”</p>
+    <div class="row" id="clearRow" hidden style="margin-top:8px"><button class="btn" id="btnClear" type="button">ล้างภาพทั้งหมด</button></div>
+    <div class="tray" id="tray"></div>
+  </section>
+
+  <section>
+    <div class="stage" id="stage">
+      <canvas id="cvBefore"></canvas>
+      <canvas id="cvAfter" class="after"></canvas>
+      <div class="divider" id="divider" hidden></div>
+      <span class="lab l" id="labL" hidden>ก่อน</span><span class="lab r" id="labR" hidden>หลัง</span>
+      <div class="empty" id="empty"><b>ยังไม่มีภาพ</b><span>เลือกภาพที่ export จาก Lightroom แล้วจะเห็นภาพก่อน/หลังตรงนี้<br>เลื่อนเส้นกลางภาพเพื่อเทียบ</span></div>
+      <span class="busy" id="busy" hidden>กำลังประมวลผล…</span>
+    </div>
+    <div class="stagebar">
+      <div class="seg" role="group" aria-label="มุมมอง">
+        <button id="vFull" class="on" type="button">ทั้งภาพ</button>
+        <button id="vFace" type="button">ซูมหน้า</button>
+      </div>
+      <span class="hint" id="faceInfo"></span>
+    </div>
+    <div class="stagebar" id="perRow" hidden>
+      <span class="hint">ลายน้ำภาพนี้</span>
+      <div class="seg" role="group" aria-label="สีลายน้ำเฉพาะภาพนี้" id="wmPer">
+        <button type="button" data-c="">ตามค่าหลัก</button>
+        <button type="button" data-c="#ffffff">ขาว</button>
+        <button type="button" data-c="#000000">ดำ</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel ctl">
+    <div class="sw"><span>เกลาผิว / ความคม</span><input type="checkbox" id="retouchOn"></div>
+    <div class="sl"><label for="smooth">ผิวเนียน <output id="smoothV"></output></label><input type="range" id="smooth" min="0" max="100"></div>
+    <div class="sl"><label for="sharpen">ความคมชัด <output id="sharpenV"></output></label><input type="range" id="sharpen" min="0" max="100"></div>
+    <div class="sl"><label for="glow">ผิวสว่างนวล <output id="glowV"></output></label><input type="range" id="glow" min="0" max="100"></div>
+    <p class="hint">เกลาเฉพาะผิว ลายผ้า เครื่องประดับ ตา และผม จะไม่ถูกทำให้เบลอ</p>
+  </section>
+
+  <section class="panel ctl">
+    <div class="sw"><span>ลายน้ำ</span><input type="checkbox" id="wmOn"></div>
+    <div class="seg" role="group" aria-label="ชนิดลายน้ำ">
+      <button id="mText" type="button" class="on">ข้อความ</button>
+      <button id="mLogo" type="button">ลายเซ็น / โลโก้</button>
+    </div>
+    <div class="ctl" id="textBox">
+      <div class="row">
+        <input type="text" id="wmText" aria-label="ข้อความลายน้ำ">
+      </div>
+      <select id="wmFont" aria-label="แบบตัวอักษร">
+        <option value="Ms Madi">ลายเซ็นเส้นบาง (ใกล้ลายน้ำเดิม)</option>
+        <option value="Herr Von Muellerhoff">ลายเซ็นเอียง</option>
+        <option value="Great Vibes">ลายมือหวาน</option>
+        <option value="Anuphan">ตัวพิมพ์</option>
+      </select>
+      <label class="sw" style="font-weight:400" for="wmShadow"><span>เงาใต้ตัวอักษร (ช่วยให้อ่านง่ายบนพื้นสว่าง)</span><input type="checkbox" id="wmShadow"></label>
+    </div>
+    <div class="wm-logo" id="logoBox" hidden>
+      <div class="lib" id="lib"></div>
+      <label class="btn" for="logoFile">＋ เพิ่มลายน้ำ (ไฟล์ PNG จาก Canva ได้)</label>
+      <input type="file" id="logoFile" accept="image/png,image/jpeg,image/*" multiple hidden>
+      <p class="hint" style="width:100%">พื้นหลังสีขาวจะถูกลบออกให้อัตโนมัติ และตัดขอบว่างรอบโลโก้ให้เอง</p>
+      <select id="logoTint" aria-label="สีโลโก้">
+        <option value="orig">ใช้สีเดิมของโลโก้</option>
+        <option value="mono">เปลี่ยนเป็นขาว/ดำ</option>
+      </select>
+    </div>
+    <div class="row" id="colorRow">
+      <span class="hint">สีลายน้ำ</span>
+      <div class="seg" role="group" aria-label="สีลายน้ำ" id="wmColorSeg">
+        <button type="button" data-c="auto">อัตโนมัติ</button>
+        <button type="button" data-c="#ffffff">ขาว</button>
+        <button type="button" data-c="#000000">ดำ</button>
+      </div>
+      <input type="color" id="wmColor" aria-label="สีอื่น">
+    </div>
+    <p class="hint" id="autoHint">อัตโนมัติ: เลือกขาวหรือดำให้แต่ละภาพตามความสว่างของมุมที่วางลายน้ำ</p>
+    <div class="sl"><label for="wmSize">ขนาด (% ความกว้างภาพ) <output id="wmSizeV"></output></label><input type="range" id="wmSize" min="5" max="60"></div>
+    <div class="sl"><label for="wmOp">ความทึบ <output id="wmOpV"></output></label><input type="range" id="wmOp" min="10" max="100"></div>
+    <div class="row" style="justify-content:space-between;align-items:flex-start">
+      <div><p class="hint" style="margin-bottom:6px">ตำแหน่ง</p><div class="grid9" id="pos"></div></div>
+      <div><p class="hint" style="margin-bottom:6px">ขนาดไฟล์ที่บันทึก</p>
+        <select id="outSize" aria-label="ขนาดไฟล์ที่บันทึก">
+          <option value="0">ขนาดเดิม</option>
+          <option value="4000">ด้านยาว 4000 px</option>
+          <option value="2048">2048 px (Facebook)</option>
+        </select></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>หลังบันทึก</h2>
+    <ol class="steps">
+      <li><b>แชร์</b> ส่งทุกภาพที่ทำเสร็จไป <b>Line</b>, <b>Facebook</b> หรือ <b>Google Drive</b> ได้ในครั้งเดียว</li>
+      <li><b>บันทึก</b> เก็บภาพลงโฟลเดอร์ Download ของเครื่อง เปิดดูได้ในแกลเลอรี</li>
+      <li><b>ZIP</b> รวมทุกภาพเป็นไฟล์เดียว เหมาะกับงานจำนวนมาก</li>
+    </ol>
+  </section>
+</div>
+
+<div class="dock">
+  <div class="in">
+    <div class="prog"><i id="progBar"></i></div>
+    <div class="msg" id="msg" aria-live="polite">เลือกภาพเพื่อเริ่ม</div>
+    <div class="acts">
+      <button class="btn primary" id="btnRun" type="button" disabled>ทำทุกภาพ</button>
+      <button class="btn gold" id="btnSave" type="button" disabled>แชร์</button>
+      <button class="btn" id="btnDl" type="button" disabled>บันทึก</button>
+      <button class="btn" id="btnZip" type="button" disabled>ZIP</button>
+    </div>
+  </div>
+</div>
+
+<script src="face-api.js"></script>
+<script src="jszip.min.js"></script>
+<script src="facemodel.js"></script>
+<script src="signature.js"></script>
+<script>
+/* ======================= image processing (runs in a Web Worker) ======================= */
+const WORKER_SRC = String.raw`
+function boxesForGauss(sigma,n){const wIdeal=Math.sqrt((12*sigma*sigma/n)+1);let wl=Math.floor(wIdeal);if(wl%2==0)wl--;const wu=wl+2;
+  const mIdeal=(12*sigma*sigma-n*wl*wl-4*n*wl-3*n)/(-4*wl-4);const m=Math.round(mIdeal);const s=[];for(let i=0;i<n;i++)s.push(i<m?wl:wu);return s}
+function boxH(src,dst,w,h,r){const iarr=1/(r+r+1);for(let i=0;i<h;i++){let ti=i*w,li=ti,ri=ti+r;const fv=src[ti],lv=src[ti+w-1];let val=(r+1)*fv;
+  for(let j=0;j<r;j++)val+=src[ti+Math.min(j,w-1)];
+  for(let j=0;j<=r;j++){val+=src[Math.min(ri,ti+w-1)]-fv;ri++;dst[ti++]=val*iarr}
+  for(let j=r+1;j<w-r;j++){val+=src[ri++]-src[li++];dst[ti++]=val*iarr}
+  for(let j=w-r;j<w;j++){val+=lv-src[li++];dst[ti++]=val*iarr}}}
+function boxT(src,dst,w,h,r){const iarr=1/(r+r+1);for(let i=0;i<w;i++){let ti=i,li=ti,ri=ti+r*w;const fv=src[ti],lv=src[ti+w*(h-1)];let val=(r+1)*fv;
+  for(let j=0;j<r;j++)val+=src[ti+Math.min(j,h-1)*w];
+  for(let j=0;j<=r;j++){val+=src[Math.min(ri,ti+w*(h-1))]-fv;ri+=w;dst[ti]=val*iarr;ti+=w}
+  for(let j=r+1;j<h-r;j++){val+=src[ri]-src[li];li+=w;ri+=w;dst[ti]=val*iarr;ti+=w}
+  for(let j=h-r;j<h;j++){val+=lv-src[li];li+=w;dst[ti]=val*iarr;ti+=w}}}
+function gauss(ch,w,h,sigma){ // same array type out as in (Uint8Clamped for full-size photos)
+  const T=ch.constructor,bxs=boxesForGauss(sigma,3);let a=T.from(ch),b=new T(ch.length);
+  for(const bx of bxs){const r=(bx-1)>>1;if(r<1)continue;boxH(a,b,w,h,r);boxT(b,a,w,h,r)}return a}
+function bilinear(arr,sw,sh,x,y){x=Math.max(0,Math.min(sw-1.001,x));y=Math.max(0,Math.min(sh-1.001,y));
+  const x0=x|0,y0=y|0,fx=x-x0,fy=y-y0,i=y0*sw+x0;
+  return (arr[i]*(1-fx)+arr[i+1]*fx)*(1-fy)+(arr[i+sw]*(1-fx)+arr[i+sw+1]*fx)*fy}
+
+function skinMask(px,sw,sh,faces){
+  const n=sw*sh,Y=new Float32Array(n),Cr=new Float32Array(n),Cb=new Float32Array(n);
+  for(let i=0,p=0;i<n;i++,p+=4){const r=px[p],g=px[p+1],b=px[p+2];const y=.299*r+.587*g+.114*b;Y[i]=y;Cr[i]=(r-y)*.713+128;Cb[i]=(b-y)*.564+128}
+  const m=new Float32Array(n);
+  let used=false;
+  if(faces.length){let s0=0,s1=0,s00=0,s11=0,s01=0,c=0;
+    for(const f of faces){const x0=Math.max(0,Math.round(f.x+f.w*.28)),x1=Math.min(sw,Math.round(f.x+f.w*.72)),y0=Math.max(0,Math.round(f.y+f.h*.35)),y1=Math.min(sh,Math.round(f.y+f.h*.8));
+      for(let y=y0;y<y1;y++)for(let x=x0;x<x1;x++){const i=y*sw+x;const a=Cr[i],b=Cb[i];s0+=a;s1+=b;s00+=a*a;s11+=b*b;s01+=a*b;c++}}
+    if(c>50){const m0=s0/c,m1=s1/c;let v00=s00/c-m0*m0+4,v11=s11/c-m1*m1+4,v01=s01/c-m0*m1;const det=v00*v11-v01*v01;
+      const i00=v11/det,i11=v00/det,i01=-v01/det;
+      for(let i=0;i<n;i++){const a=Cr[i]-m0,b=Cb[i]-m1;const d=Math.sqrt(Math.max(0,a*a*i00+2*a*b*i01+b*b*i11));m[i]=Math.min(1,Math.max(0,(3.2-d)/1.2))}
+      used=true}}
+  if(!used){for(let i=0;i<n;i++){const a=Cr[i],b=Cb[i];
+      const da=Math.max(0,133-a,a-173),db=Math.max(0,77-b,b-127);m[i]=Math.max(0,1-(da+db)/6)}}
+  // texture gate: skin is smooth at this scale; lace, brocade, jewellery and hair are not
+  const ys=Math.max(1.5,Math.min(sw,sh)/250);
+  const mu=gauss(Y,sw,sh,ys),sq=new Float32Array(n);for(let i=0;i<n;i++)sq[i]=Y[i]*Y[i];const mu2=gauss(sq,sw,sh,ys);
+  for(let i=0;i<n;i++){const sd=Math.sqrt(Math.max(0,mu2[i]-mu[i]*mu[i]));const gate=Math.min(1,Math.max(0,1-(sd-7)/9));
+    m[i]*=gate*Math.min(1,Math.max(0,(Y[i]-35)/25))}
+  if(faces.length){ // only skin within reach of a face: face, neck, shoulders, arms, hands, not the skirt below
+    const fs=faces.map(f=>({cx:f.x+f.w/2,cy:f.y+f.h/2,r:Math.max(f.w,f.h)}));
+    for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){let best=1e9;
+      for(const f of fs){const d=Math.hypot(x-f.cx,(y-f.cy)*(y<f.cy?1.6:1))/f.r;if(d<best)best=d}
+      m[y*sw+x]*=Math.min(1,Math.max(0,1-(best-2.6)/1.2))}}
+  return gauss(m,sw,sh,Math.max(1.2,Math.min(sw,sh)/220));
+}
+function bilateral(src,w,h,sc,mask){ // src Float32 RGB interleaved(3) 0..255; radius 4, sigmaSpace 6; only where mask>0
+  const R=4,ss=6,out=Float32Array.from(src),k=-.5/(sc*sc),dx_=[],dy_=[],ws_=[];
+  for(let dy=-R;dy<=R;dy++)for(let dx=-R;dx<=R;dx++){dx_.push(dx);dy_.push(dy);ws_.push(Math.exp(-(dx*dx+dy*dy)/(2*ss*ss)))}
+  const LUT=new Float32Array(12200);for(let i=0;i<LUT.length;i++)LUT[i]=Math.exp(i*16*k); // colour weight by squared distance/16
+  const K=ws_.length;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const pi=y*w+x;if(mask[pi]<.02)continue;const i=pi*3,r0=src[i],g0=src[i+1],b0=src[i+2];let wr=0,ar=0,ag=0,ab=0;
+    const edge=x<R||y<R||x>=w-R||y>=h-R;
+    for(let t=0;t<K;t++){const xx=x+dx_[t],yy=y+dy_[t];if(edge&&(xx<0||yy<0||xx>=w||yy>=h))continue;const j=(yy*w+xx)*3;
+      const a=src[j],b=src[j+1],c=src[j+2];const dr=a-r0,dg=b-g0,db=c-b0;const wt=ws_[t]*LUT[Math.min(12199,((dr*dr+dg*dg+db*db)/16)|0)];
+      wr+=wt;ar+=a*wt;ag+=b*wt;ab+=c*wt}
+    out[i]=ar/wr;out[i+1]=ag/wr;out[i+2]=ab/wr}
+  return out}
+function upsampler(sw,sh,W,H){ // precomputed bilinear taps from small grid to full size
+  const fx=sw/W,fy=sh/H,x0=new Int32Array(W),xw=new Float32Array(W),y0=new Int32Array(H),yw=new Float32Array(H);
+  for(let x=0;x<W;x++){const s=Math.max(0,Math.min(sw-1.001,(x+.5)*fx-.5));x0[x]=s|0;xw[x]=s-(s|0)}
+  for(let y=0;y<H;y++){const s=Math.max(0,Math.min(sh-1.001,(y+.5)*fy-.5));y0[y]=s|0;yw[y]=s-(s|0)}
+  return {x0,xw,y0,yw}}
+
+function retouch(img,W,H,small,sw,sh,facesSmall,p){
+  const px=img.data,s=p.smooth,sh_=p.sharpen,gl=p.glow;
+  if(s<=0&&sh_<=0&&gl<=0)return;
+  const L=Math.max(W,H),fx=sw/W,fy=sh/H;
+  const mask=skinMask(small.data,sw,sh,facesSmall);
+  let corr=null;
+  if(s>0){const n=sw*sh,a=new Float32Array(n*3);for(let i=0;i<n;i++){a[i*3]=small.data[i*4];a[i*3+1]=small.data[i*4+1];a[i*3+2]=small.data[i*4+2]}
+    let b=bilateral(a,sw,sh,20+45*s,mask);b=bilateral(b,sw,sh,20+45*s,mask);corr=new Float32Array(n*3);for(let i=0;i<n*3;i++)corr[i]=b[i]-a[i];}
+  const fine=Math.max(.6,L/4500),rs=Math.max(.8,L/3500),strength=Math.min(1,.35+s),keep=.4*s,amt=1.3*sh_;
+  const N=W*H,ch=new Uint8ClampedArray(N);
+  const cc=corr?[0,1,2].map(c=>{const o=new Float32Array(sw*sh);for(let i=0;i<sw*sh;i++)o[i]=corr[i*3+c];return o}):null;
+  const U=upsampler(sw,sh,W,H),X0=U.x0,XW=U.xw;
+  const up=(arr,x,r0,r1,wy)=>{const i=X0[x],fx=XW[x];return (arr[r0+i]*(1-fx)+arr[r0+i+1]*fx)*(1-wy)+(arr[r1+i]*(1-fx)+arr[r1+i+1]*fx)*wy};
+  // per-pixel mask (computed once)
+  const M=new Uint8ClampedArray(N);
+  for(let y=0;y<H;y++){const r0=U.y0[y]*sw,r1=r0+sw,wy=U.yw[y];for(let x=0;x<W;x++)M[y*W+x]=up(mask,x,r0,r1,wy)*255}
+  for(let c=0;c<3;c++){
+    for(let i=0;i<N;i++)ch[i]=px[i*4+c];
+    const bf=s>0?gauss(ch,W,H,fine):null, bs=sh_>0?gauss(ch,W,H,rs):null;const cor=cc&&cc[c];
+    for(let y=0;y<H;y++){const r0=U.y0[y]*sw,r1=r0+sw,wy=U.yw[y];for(let x=0;x<W;x++){const i=y*W+x;const v0=ch[i];const mi=M[i];let v=v0;const m=mi/255;
+      if(bf&&mi){const mm=m*strength;v+=mm*(up(cor,x,r0,r1,wy)-keep*(v0-bf[i]))}
+      if(gl>0)v+=(255-v)*m*gl*.12;
+      if(bs)v+=(v0-bs[i])*amt*(1-.85*m);
+      px[i*4+c]=v}}
+    postMessage({type:'tick',stage:c})
+  }
+}
+function place(W,H,ow,oh,pos,margin){const x={l:margin,c:(W-ow)/2,r:W-ow-margin}[pos[1]],y={t:margin,m:(H-oh)/2,b:H-oh-margin}[pos[0]];return [x,y]}
+function watermark(ctx,W,H,wm,logo){
+  const size=wm.size/100,op=wm.opacity/100,margin=Math.round(Math.min(W,H)*.03);
+  ctx.save();ctx.globalAlpha=op;
+  let pick=null;
+  if(logo){let img=logo.fixed||logo.light;const lw=W*size,lh=img.height*lw/img.width;const [x,y]=place(W,H,lw,lh,wm.position,margin);
+    if(!logo.fixed){const d=ctx.getImageData(Math.max(0,x|0),Math.max(0,y|0),Math.max(1,Math.min(W,lw)|0),Math.max(1,Math.min(H,lh)|0)).data;let sum=0,n=0;
+      for(let i=0;i<d.length;i+=16){sum+=.299*d[i]+.587*d[i+1]+.114*d[i+2];n++}pick=sum/n>165?'dark':'light';img=logo[pick]}
+    ctx.globalAlpha=op;ctx.drawImage(img,x,y,lw,lh)}
+  ctx.restore();return pick}
+
+onmessage=async e=>{const {id,bitmap,faces,p,logo,maxEdge,quality,want}=e.data;
+  try{
+    let W=bitmap.width,H=bitmap.height;const sc=maxEdge&&Math.max(W,H)>maxEdge?maxEdge/Math.max(W,H):1;W=Math.round(W*sc);H=Math.round(H*sc);
+    const cv=new OffscreenCanvas(W,H),ctx=cv.getContext('2d',{willReadFrequently:true});ctx.imageSmoothingQuality='high';ctx.drawImage(bitmap,0,0,W,H);
+    const fs=Math.min(1,1000/Math.max(W,H)),sw=Math.max(1,Math.round(W*fs)),sh=Math.max(1,Math.round(H*fs));
+    const scv=new OffscreenCanvas(sw,sh),sctx=scv.getContext('2d');sctx.imageSmoothingQuality='high';sctx.drawImage(bitmap,0,0,sw,sh);
+    bitmap.close&&bitmap.close();
+    const small=sctx.getImageData(0,0,sw,sh);
+    const facesSmall=faces.map(f=>({x:f.x*sw,y:f.y*sh,w:f.w*sw,h:f.h*sh}));
+    if(p.retouchOn){const img=ctx.getImageData(0,0,W,H);retouch(img,W,H,small,sw,sh,facesSmall,p);ctx.putImageData(img,0,0)}
+    let pick=null;if(p.wmOn)pick=watermark(ctx,W,H,p.wm,logo);
+    if(want==='bitmap'){const bm=cv.transferToImageBitmap();postMessage({id,ok:true,bitmap:bm,pick},[bm])}
+    else{const blob=await cv.convertToBlob({type:'image/jpeg',quality});postMessage({id,ok:true,blob,W,H})}
+  }catch(err){postMessage({id,ok:false,error:String(err&&err.message||err)})}
+};`;
+
+/* ======================= page ======================= */
+const $=id=>document.getElementById(id);
+const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
+             set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+const DEF={retouchOn:true,smooth:.4,sharpen:.4,glow:.2,wmOn:true,outSize:0,
+  wm:{mode:'logo',text:'Naiin photography',color:'auto',font:'Ms Madi',shadow:false,tint:'mono',size:33,opacity:90,position:'br'}};
+const P=Object.assign({},DEF,store.get('pf_settings',{}));P.wm=Object.assign({},DEF.wm,P.wm||{});if(P.wm.font==='Allura')P.wm.font='Ms Madi';
+let logoBitmap=null,logos=store.get('pf_logos',[]);
+{const old=store.get('pf_logo',null);if(old&&!logos.length){logos.push({id:'u'+Date.now(),url:old});store.set('pf_logos',logos)}try{localStorage.removeItem('pf_logo')}catch(e){}}
+function allLogos(){return (window.PF_SIG?[{id:'sig',url:window.PF_SIG,builtin:true}]:[]).concat(logos)}
+function curLogo(){const a=allLogos();return a.find(l=>l.id===P.wm.logoId)||a[0]||null}
+let logoURL=(curLogo()||{}).url||null;
+if(!P.wm.sig1){Object.assign(P.wm,{mode:'logo',tint:'mono',color:'auto',size:33,opacity:90,position:'br',sig1:true});store.set('pf_settings',P)}
+const items=[]; let cur=-1, view='full', running=false;
+let worker=null,seq=0;const pending=new Map();
+function getWorker(){if(worker)return worker;
+  worker=new Worker(URL.createObjectURL(new Blob([WORKER_SRC],{type:'text/javascript'})));
+  worker.onmessage=e=>{const d=e.data;if(d.type==='tick')return;const cb=pending.get(d.id);if(cb){pending.delete(d.id);cb(d)}};
+  return worker}
+function runWorker(msg,transfer){return new Promise((res,rej)=>{const id=++seq;pending.set(id,d=>d.ok?res(d):rej(new Error(d.error)));
+  getWorker().postMessage(Object.assign({id},msg),transfer||[])})}
+
+/* --- face detection (bundled tiny model, optional) --- */
+let faceReady=null;
+function loadFace(){if(faceReady)return faceReady;
+  faceReady=(async()=>{if(!window.faceapi)return false;
+    try{const M=window.PF_FACE_MODEL;if(!M)return false;
+      const bin=Uint8Array.from(atob(M.b64),c=>c.charCodeAt(0)).buffer;
+      const map=faceapi.tf.io.decodeWeights(bin,M.specs);
+      await faceapi.nets.tinyFaceDetector.loadFromWeightMap(map);return true}catch(e){console.warn('face model',e);return false}})();
+  return faceReady}
+async function detectFaces(bitmap){
+  if(!(await loadFace()))return [];
+  const s=Math.min(1,640/Math.max(bitmap.width,bitmap.height));const c=document.createElement('canvas');
+  c.width=Math.round(bitmap.width*s);c.height=Math.round(bitmap.height*s);c.getContext('2d').drawImage(bitmap,0,0,c.width,c.height);
+  try{const r=await faceapi.detectAllFaces(c,new faceapi.TinyFaceDetectorOptions({inputSize:416,scoreThreshold:.35}));
+    return r.map(d=>({x:d.box.x/c.width,y:d.box.y/c.height,w:d.box.width/c.width,h:d.box.height/c.height}))}catch(e){return []}}
+
+/* --- settings UI --- */
+const POS=['tl','tc','tr','ml','mc','mr','bl','bc','br'];
+function paintSettings(){
+  $('retouchOn').checked=P.retouchOn;$('wmOn').checked=P.wmOn;
+  for(const k of ['smooth','sharpen','glow']){$(k).value=Math.round(P[k]*100);$(k+'V').textContent=$(k).value}
+  $('wmText').value=P.wm.text;$('wmFont').value=P.wm.font;$('wmShadow').checked=!!P.wm.shadow;$('logoTint').value=P.wm.tint==='orig'?'orig':'mono';if(/^#/.test(P.wm.color))$('wmColor').value=P.wm.color;document.querySelectorAll('#wmColorSeg button').forEach(b=>b.classList.toggle('on',b.dataset.c===P.wm.color));const mono=P.wm.mode!=='logo'||P.wm.tint!=='orig';$('colorRow').hidden=!mono;$('autoHint').hidden=!mono||P.wm.color!=='auto';$('wmSize').value=P.wm.size;$('wmSizeV').textContent=P.wm.size+'%';
+  $('wmOp').value=P.wm.opacity;$('wmOpV').textContent=P.wm.opacity+'%';$('outSize').value=String(P.outSize);
+  $('mText').classList.toggle('on',P.wm.mode!=='logo');$('mLogo').classList.toggle('on',P.wm.mode==='logo');
+  $('textBox').hidden=P.wm.mode==='logo';$('logoBox').hidden=P.wm.mode!=='logo';
+  $('pos').innerHTML=POS.map(p=>`<button type="button" data-p="${p}" aria-label="ตำแหน่ง ${p}" class="${p===P.wm.position?'on':''}"></button>`).join('');
+  const cl=curLogo();$('lib').innerHTML=allLogos().map(l=>`<div class="it ${cl&&l.id===cl.id?'on':''}" data-id="${l.id}" role="button" tabindex="0" aria-label="เลือกลายน้ำ"><img src="${l.url}" alt="">${l.builtin?'':`<button class="x" type="button" data-del="${l.id}" aria-label="ลบ">✕</button>`}</div>`).join('');
+}
+let pvT;function changed(){paintPer();store.set('pf_settings',P);items.forEach(it=>{it.out=null});paintTray();clearTimeout(pvT);pvT=setTimeout(preview,350)}
+for(const k of ['smooth','sharpen','glow'])$(k).addEventListener('input',()=>{P[k]=$(k).value/100;$(k+'V').textContent=$(k).value;changed()});
+$('retouchOn').onchange=()=>{P.retouchOn=$('retouchOn').checked;changed()};
+$('wmOn').onchange=()=>{P.wmOn=$('wmOn').checked;changed()};
+$('wmText').addEventListener('input',()=>{P.wm.text=$('wmText').value;changed()});
+$('wmColor').addEventListener('input',()=>{P.wm.color=$('wmColor').value;paintSettings();changed()});
+$('wmColorSeg').onclick=e=>{const b=e.target.closest('button');if(!b)return;P.wm.color=b.dataset.c;paintSettings();changed()};
+$('wmPer').onclick=e=>{const b=e.target.closest('button');const it=items[cur];if(!b||!it)return;it.wmc=b.dataset.c||null;it.out=null;paintPer();paintTray();preview()};
+function paintPer(){const it=items[cur];$('perRow').hidden=!it||!P.wmOn||(P.wm.mode==='logo'&&P.wm.tint==='orig');document.querySelectorAll('#wmPer button').forEach(b=>b.classList.toggle('on',(b.dataset.c||null)===(it&&it.wmc||null)))}
+$('wmFont').onchange=()=>{P.wm.font=$('wmFont').value;changed()};
+$('wmShadow').onchange=()=>{P.wm.shadow=$('wmShadow').checked;changed()};
+$('logoTint').onchange=()=>{P.wm.tint=$('logoTint').value;paintSettings();changed()};
+$('wmSize').addEventListener('input',()=>{P.wm.size=+$('wmSize').value;$('wmSizeV').textContent=P.wm.size+'%';changed()});
+$('wmOp').addEventListener('input',()=>{P.wm.opacity=+$('wmOp').value;$('wmOpV').textContent=P.wm.opacity+'%';changed()});
+$('outSize').onchange=()=>{P.outSize=+$('outSize').value;changed()};
+$('mText').onclick=()=>{P.wm.mode='text';paintSettings();changed()};
+$('mLogo').onclick=()=>{P.wm.mode='logo';paintSettings();changed()};
+$('pos').onclick=e=>{const b=e.target.closest('button');if(!b)return;P.wm.position=b.dataset.p;paintSettings();changed()};
+function pickLogo(id){P.wm.logoId=id;logoURL=(curLogo()||{}).url||null;logoBitmap=null;paintSettings();changed()}
+$('lib').onclick=e=>{const d=e.target.closest('[data-del]');if(d){logos=logos.filter(l=>l.id!==d.dataset.del);store.set('pf_logos',logos);pickLogo(P.wm.logoId===d.dataset.del?'sig':P.wm.logoId);return}
+  const it=e.target.closest('.it');if(it)pickLogo(it.dataset.id)};
+async function prepLogo(file){ // trim empty margins; turn a white (or black) background into transparency
+  const bm=await createImageBitmap(file);const s=Math.min(1,2400/Math.max(bm.width,bm.height));
+  const c=document.createElement('canvas');c.width=Math.round(bm.width*s);c.height=Math.round(bm.height*s);const x=c.getContext('2d',{willReadFrequently:true});
+  x.drawImage(bm,0,0,c.width,c.height);const W=c.width,H=c.height;const id=x.getImageData(0,0,W,H),d=id.data;
+  let opaque=true;for(let i=3;i<d.length;i+=16)if(d[i]<250){opaque=false;break}
+  let converted=false;
+  if(opaque){ // background = average of the four corners
+    const cs=[[0,0],[W-1,0],[0,H-1],[W-1,H-1]].map(([cx,cy])=>{const i=(cy*W+cx)*4;return .299*d[i]+.587*d[i+1]+.114*d[i+2]});
+    const bgL=cs.reduce((a,b)=>a+b)/4,light=bgL>128;let ext=light?255:0;
+    for(let i=0;i<d.length;i+=4){const L=.299*d[i]+.587*d[i+1]+.114*d[i+2];ext=light?Math.min(ext,L):Math.max(ext,L)}
+    const range=Math.max(40,Math.abs(bgL-ext));
+    for(let i=0;i<d.length;i+=4){const L=.299*d[i]+.587*d[i+1]+.114*d[i+2];const a=Math.min(1,Math.max(0,((light?bgL-L:L-bgL)/range-.12)/.88));
+      const v=light?0:255;d[i]=d[i+1]=d[i+2]=v;d[i+3]=Math.round(Math.min(1,a*1.15)*255)}
+    converted=true}
+  let x0=W,y0=H,x1=-1,y1=-1;for(let y=0;y<H;y++)for(let xx=0;xx<W;xx++)if(d[(y*W+xx)*4+3]>10){if(xx<x0)x0=xx;if(xx>x1)x1=xx;if(y<y0)y0=y;if(y>y1)y1=y}
+  if(x1<0)throw new Error('ไม่พบลายน้ำในไฟล์');
+  x.putImageData(id,0,0);const pad=Math.round(Math.max(x1-x0,y1-y0)*.02);x0=Math.max(0,x0-pad);y0=Math.max(0,y0-pad);x1=Math.min(W-1,x1+pad);y1=Math.min(H-1,y1+pad);
+  const tw=x1-x0+1,th=y1-y0+1,k=Math.min(1,1600/Math.max(tw,th));const o=document.createElement('canvas');o.width=Math.round(tw*k);o.height=Math.round(th*k);
+  o.getContext('2d').drawImage(c,x0,y0,tw,th,0,0,o.width,o.height);return {url:o.toDataURL('image/png'),converted}}
+$('logoFile').onchange=async e=>{const fs=[...e.target.files];e.target.value='';let last=null,conv=false;
+  for(const f of fs){try{const r=await prepLogo(f);const l={id:'u'+Date.now()+Math.random().toString(36).slice(2,6),url:r.url};logos.push(l);last=l;conv=conv||r.converted}catch(err){msg('ใช้ไฟล์ '+f.name+' ไม่ได้: '+err.message,true)}}
+  store.set('pf_logos',logos);if(last){if(conv)P.wm.tint='mono';pickLogo(last.id);msg(conv?'เพิ่มลายน้ำแล้ว ✓ ลบพื้นหลังขาวออกให้แล้ว':'เพิ่มลายน้ำแล้ว ✓')}};
+async function wmBase(color){ // one watermark image in the given colour (null = logo's own colours)
+  if(P.wm.mode==='logo'){
+    if(!logoURL)return null;
+    if(!logoBitmap){const b=await (await fetch(logoURL)).blob();logoBitmap=await createImageBitmap(b)}
+    if(!color)return await createImageBitmap(logoBitmap);
+    const c=document.createElement('canvas');c.width=logoBitmap.width;c.height=logoBitmap.height;const x=c.getContext('2d');
+    x.drawImage(logoBitmap,0,0);x.globalCompositeOperation='source-in';x.fillStyle=color;x.fillRect(0,0,c.width,c.height);
+    return await createImageBitmap(c)}
+  const text=(P.wm.text||'').trim()||'Naiin photography',font=P.wm.font||'Ms Madi',fs=220;
+  try{await document.fonts.load(`${fs}px "${font}"`,text)}catch(e){}
+  const c=document.createElement('canvas'),x=c.getContext('2d');const f=`${font==='Anuphan'?'600 ':''}${fs}px "${font}", "Anuphan", sans-serif`;x.font=f;
+  const m=x.measureText(text);const pad=Math.round(fs*.25);
+  const asc=Math.ceil(m.actualBoundingBoxAscent||fs*.9),desc=Math.ceil(m.actualBoundingBoxDescent||fs*.3);
+  const left=Math.ceil(m.actualBoundingBoxLeft||0),w=Math.ceil((m.actualBoundingBoxRight||m.width)+left);
+  c.width=w+pad*2;c.height=asc+desc+pad*2;x.font=f;x.textBaseline='alphabetic';
+  if(P.wm.shadow){const dark=color==='#000000';x.shadowColor=dark?'rgba(255,255,255,.5)':'rgba(0,0,0,.45)';x.shadowBlur=fs/12;x.shadowOffsetY=fs/40}
+  x.fillStyle=color||'#ffffff';x.fillText(text,pad+left,pad+asc);
+  return await createImageBitmap(c)}
+async function getWm(it){ // -> {fixed} or {light,dark} (worker picks by brightness)
+  if(!P.wmOn)return null;
+  if(P.wm.mode==='logo'&&P.wm.tint==='orig'){const b=await wmBase(null);return b?{fixed:b}:null}
+  const c=(it&&it.wmc)||P.wm.color||'auto';
+  if(c!=='auto'){const b=await wmBase(c);return b?{fixed:b}:null}
+  const light=await wmBase('#ffffff');if(!light)return null;return {light,dark:await wmBase('#000000')}}
+function wmTransfer(w){return w?Object.values(w).filter(Boolean):[]}
+
+/* --- photos --- */
+function msg(t,err){$('msg').textContent=t;$('msg').classList.toggle('err',!!err)}
+function prog(p){$('progBar').style.width=(p*100)+'%'}
+function paintTray(){
+  $('tray').innerHTML=items.map((it,i)=>`<button type="button" class="thumb ${i===cur?'on':''}" data-i="${i}" aria-label="ภาพ ${i+1}">
+    <img src="${it.thumb}" alt=""><span class="st ${it.out?'done':''}">${it.out?'✓':i+1}</span></button>`).join('');
+  const n=items.length,done=items.filter(x=>x.out).length;
+  $('btnRun').disabled=!n||running;$('btnRun').textContent=n?`ทำทุกภาพ (${n})`:'ทำทุกภาพ';
+  $('btnSave').disabled=!done||running;$('btnZip').disabled=!done||running;$('btnDl').disabled=!done||running;
+}
+$('tray').onclick=e=>{const b=e.target.closest('.thumb');if(!b)return;cur=+b.dataset.i;paintTray();paintPer();preview()};
+async function addFiles(list){
+  const fs=[...list].filter(f=>/\.(jpe?g|png|webp)$/i.test(f.name)||/^image\/(jpeg|png|webp)$/.test(f.type))
+    .sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  const have=new Set(items.map(x=>x.name+'|'+x.file.size));
+  if(!fs.length){msg('ไม่พบไฟล์ภาพ JPEG ในที่ที่เลือก',true);return}
+  msg('กำลังเปิดภาพ…');
+  for(const f of fs){
+    if(have.has(f.name+'|'+f.size))continue;
+    try{const bm=await createImageBitmap(f,{imageOrientation:'from-image'});
+      const s=Math.min(1,180/Math.max(bm.width,bm.height));const c=document.createElement('canvas');c.width=Math.round(bm.width*s);c.height=Math.round(bm.height*s);
+      c.getContext('2d').drawImage(bm,0,0,c.width,c.height);
+      items.push({file:f,name:f.name,w:bm.width,h:bm.height,thumb:c.toDataURL('image/jpeg',.7),faces:null,out:null});bm.close&&bm.close();
+    }catch(err){msg('เปิดไฟล์ '+f.name+' ไม่ได้',true)}
+  }
+  if(cur<0)cur=0;paintTray();$('clearRow').hidden=!items.length;msg(`มี ${items.length} ภาพ · ปรับค่าด้านล่าง แล้วกด “ทำทุกภาพ”`);preview();loadFace();
+}
+$('files').onchange=e=>{const l=[...e.target.files];e.target.value='';if(l.length)addFiles(l)};
+$('folder').onchange=e=>{const l=[...e.target.files];e.target.value='';if(l.length)addFiles(l)};
+if(!('webkitdirectory' in document.createElement('input')))$('folderBtn').hidden=true;
+$('btnClear').onclick=()=>{items.length=0;cur=-1;pvRun++;paintTray();$('clearRow').hidden=true;$('empty').hidden=false;['divider','labL','labR'].forEach(k=>$(k).hidden=true);['cvBefore','cvAfter'].forEach(k=>{const c=$(k);c.width=c.width});$('faceInfo').textContent='';prog(0);msg('เลือกภาพเพื่อเริ่ม')};
+async function bitmapOf(it){return createImageBitmap(it.file,{imageOrientation:'from-image'})}
+async function facesOf(it){if(it.faces)return it.faces;const bm=await bitmapOf(it);it.faces=await detectFaces(bm);bm.close&&bm.close();return it.faces}
+function params(){return {retouchOn:P.retouchOn,smooth:P.smooth,sharpen:P.sharpen,glow:P.glow,wmOn:P.wmOn,wm:P.wm}}
+
+/* --- preview --- */
+let pvRun=0;
+async function preview(){
+  const it=items[cur];if(!it)return;const my=++pvRun;
+  $('empty').hidden=true;$('busy').hidden=false;
+  try{
+    const faces=await facesOf(it);if(my!==pvRun)return;
+    $('faceInfo').textContent=faces.length?`พบใบหน้า ${faces.length}`:'ไม่พบใบหน้า · ใช้สีผิวแทน';
+    const bm=await bitmapOf(it);const edge=1400;
+    const s=Math.min(1,edge/Math.max(bm.width,bm.height));
+    const b2=await createImageBitmap(bm,{resizeWidth:Math.round(bm.width*s),resizeHeight:Math.round(bm.height*s),resizeQuality:'high'});bm.close&&bm.close();
+    draw($('cvBefore'),b2);
+    const copy=await createImageBitmap(b2);
+    const logo=await getWm(it);
+    const r=await runWorker({bitmap:copy,faces,p:params(),logo,maxEdge:0,want:'bitmap'},[copy].concat(wmTransfer(logo)));
+    if(r.pick)$('faceInfo').textContent+=` · ลายน้ำ${r.pick==='dark'?'ดำ':'ขาว'}`;
+    if(my!==pvRun)return;
+    draw($('cvAfter'),r.bitmap);
+    $('stage').style.aspectRatio=`${b2.width}/${b2.height}`;
+    ['divider','labL','labR'].forEach(k=>$(k).hidden=false);
+    applyView();
+  }catch(err){msg('แสดงตัวอย่างไม่ได้: '+err.message,true)}
+  finally{if(my===pvRun)$('busy').hidden=true}
+}
+function draw(cv,bm){cv.width=bm.width;cv.height=bm.height;cv.getContext('2d').drawImage(bm,0,0)}
+function applyView(){
+  const it=items[cur];let t='none';
+  if(view==='face'&&it&&it.faces&&it.faces.length){const f=it.faces[0];const z=Math.min(5,Math.max(2,.3/f.w));
+    const cx=f.x+f.w/2,cy=f.y+f.h/2;t=`scale(${z}) translate(${(.5-cx)*100}%,${(.5-cy)*100}%)`}
+  $('cvBefore').style.transform=t;$('cvAfter').style.transform=t;
+}
+$('vFull').onclick=()=>{view='full';$('vFull').classList.add('on');$('vFace').classList.remove('on');applyView()};
+$('vFace').onclick=()=>{view='face';$('vFace').classList.add('on');$('vFull').classList.remove('on');applyView()};
+// before/after divider drag
+(function(){const st=$('stage');let drag=false;
+  const set=x=>{const r=st.getBoundingClientRect();const p=Math.min(100,Math.max(0,(x-r.left)/r.width*100));st.style.setProperty('--cut',p+'%')};
+  st.addEventListener('pointerdown',e=>{if(!items.length)return;drag=true;st.setPointerCapture(e.pointerId);set(e.clientX)});
+  st.addEventListener('pointermove',e=>{if(drag)set(e.clientX)});
+  st.addEventListener('pointerup',()=>drag=false);st.addEventListener('pointercancel',()=>drag=false);})();
+
+/* --- batch --- */
+let wake=null;
+$('btnRun').onclick=async()=>{
+  if(running)return;running=true;paintTray();
+  try{wake=await navigator.wakeLock?.request('screen')}catch(e){}
+  const t0=Date.now();let fail=0;
+  for(let i=0;i<items.length;i++){const it=items[i];
+    if(it.out){continue}
+    msg(`กำลังทำภาพ ${i+1}/${items.length} · ${it.name}`);prog(i/items.length);
+    try{const faces=await facesOf(it);const bm=await bitmapOf(it);const logo=await getWm(it);
+      const r=await runWorker({bitmap:bm,faces,p:params(),logo,maxEdge:P.outSize,quality:.93,want:'blob'},[bm].concat(wmTransfer(logo)));
+      it.out=r.blob;}catch(err){fail++;console.error(err)}
+    paintTray();
+  }
+  prog(1);running=false;try{wake&&wake.release()}catch(e){}
+  paintTray();
+  msg(fail?`เสร็จ ${items.length-fail} ภาพ · ทำไม่ได้ ${fail} ภาพ (ไฟล์อาจใหญ่เกินไป ลองเลือกขนาด 4000 px)`:
+    `เสร็จ ${items.length} ภาพ ใน ${Math.round((Date.now()-t0)/1000)} วินาที · กดบันทึกได้เลย`,!!fail);
+};
+
+/* --- sharing & saving --- */
+function outName(it){return it.name.replace(/\.[^.]+$/,'')+'_PF.jpg'}
+function doneItems(){return items.filter(x=>x.out)}
+function dlBlob(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
+$('btnSave').onclick=async()=>{
+  const files=doneItems().map(it=>new File([it.out],outName(it),{type:'image/jpeg'}));
+  if(!(navigator.canShare&&navigator.canShare({files}))){msg('เครื่องนี้แชร์ไฟล์ตรงไม่ได้ · ใช้ปุ่ม “บันทึก” แทน',true);return}
+  try{await navigator.share({files,title:'PhotoFlow'});msg(`ส่ง ${files.length} ภาพแล้ว ✓`)}
+  catch(e){if(e.name==='AbortError')msg('ยกเลิกการแชร์');else msg('แชร์ไม่สำเร็จ ('+e.message+') · ลองแชร์ทีละน้อยลง หรือใช้ “บันทึก”',true)}
+};
+$('btnDl').onclick=async()=>{
+  const d=doneItems();msg(`กำลังบันทึก ${d.length} ภาพ…`);
+  for(const it of d){dlBlob(it.out,outName(it));await new Promise(r=>setTimeout(r,450))}
+  msg(`บันทึก ${d.length} ภาพลงโฟลเดอร์ Download แล้ว ✓ (ถ้าเครื่องถามเรื่องดาวน์โหลดหลายไฟล์ ให้กด “อนุญาต”)`);
+};
+$('btnZip').onclick=async()=>{
+  const d=doneItems();msg('กำลังรวมไฟล์ ZIP…');
+  const z=new JSZip();d.forEach(it=>z.file(outName(it),it.out));
+  const blob=await z.generateAsync({type:'blob',compression:'STORE'});
+  const t=new Date();const name=`PhotoFlow_${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,'0')}-${String(t.getDate()).padStart(2,'0')}.zip`;
+  const f=new File([blob],name,{type:'application/zip'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],title:name});msg('ส่ง ZIP แล้ว ✓');return}catch(e){if(e.name==='AbortError'){msg('ยกเลิก');return}}}
+  dlBlob(blob,name);msg(`บันทึก ${name} แล้ว ✓`);
+};
+if('serviceWorker' in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+paintSettings();paintTray();
+</script>
+</body></html>
