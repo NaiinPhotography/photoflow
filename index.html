@@ -124,6 +124,8 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
 .hslc button{display:inline-flex;align-items:center;gap:6px}.hslc i{width:12px;height:12px;border-radius:50%;display:inline-block}
 #presets button span{color:var(--muted);margin-left:4px}
 .curvebox{margin-top:10px;width:100%;max-width:360px}.curvebox canvas{width:100%;aspect-ratio:1;display:block;touch-action:none;border-radius:8px;background:var(--bg)}
+textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:10px;margin-top:8px}
+#tplFields input{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;min-height:44px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head><body>
@@ -282,6 +284,30 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
           <option value="2048">2048 px (Facebook)</option>
         </select></div>
     </div>
+  </section>
+
+  <section class="panel ctl" id="artPanel">
+    <b style="font-size:16px">สตูดิโอศิลป์ AI</b>
+    <p class="hint">เลือกแม่แบบ กรอกรายละเอียด แล้วใช้กับ ChatGPT หรือสร้างในแอป</p>
+    <div class="chips" id="tplChips"></div>
+    <div class="ctl" id="tplFields"></div>
+    <div class="tools"><button class="btn gold" id="tplCopy" type="button">คัดลอก Prompt</button><a class="btn" href="https://chatgpt.com/" target="_blank" rel="noopener" style="text-align:center;text-decoration:none;color:inherit">เปิด ChatGPT</a></div>
+    <p class="hint">ใช้กับ ChatGPT: คัดลอก Prompt › เปิด ChatGPT › แนบภาพ › วาง › ส่ง · ได้ภาพแล้วบันทึกลงเครื่อง นำเข้า PhotoFlow เพื่อปรับโทนและใส่ลายเซ็น</p>
+    <details class="adjsec"><summary>ดู / แก้ข้อความ Prompt</summary>
+      <textarea id="tplText" rows="10" aria-label="ข้อความ Prompt"></textarea>
+      <p class="hint">ใส่วงเล็บเหลี่ยม เช่น [ชื่อเมือง] ตรงไหนก็ได้ แอปจะสร้างช่องกรอกให้เอง</p>
+      <div class="row"><input type="text" id="tplName" placeholder="ชื่อแม่แบบใหม่" aria-label="ชื่อแม่แบบ"><button class="btn" id="tplSave" type="button">บันทึกเป็นแม่แบบ</button></div>
+    </details>
+    <details class="adjsec" id="apiSec"><summary>สร้างในแอปด้วย OpenAI (มีค่าใช้จ่ายต่อภาพ)</summary>
+      <p class="hint">ใช้ระบบสร้างภาพตัวเดียวกับ ChatGPT ผ่าน API ซึ่ง<b>คิดเงินแยกจากค่าสมาชิก ChatGPT</b> ประมาณ 0.2–7 บาทต่อภาพ ตามขนาดและคุณภาพ</p>
+      <div class="row"><input type="password" id="oaiKey" placeholder="วาง OpenAI API Key (sk-...)" aria-label="OpenAI API Key" autocomplete="off"><button class="btn" id="oaiKeySave" type="button">บันทึกคีย์</button></div>
+      <p class="hint" id="oaiKeyState">คีย์เก็บไว้ในเครื่องนี้เท่านั้น ไม่ถูกส่งออกไปกับไฟล์การตั้งค่า · ขอคีย์ได้ที่ platform.openai.com</p>
+      <div class="row"><label class="hint" for="oaiQ">คุณภาพ</label><select id="oaiQ"><option value="low">ร่าง (ถูกสุด)</option><option value="medium" selected>กลาง</option><option value="high">สูงสุด (แพงสุด)</option></select>
+        <label class="hint" for="oaiSize">ขนาด</label><select id="oaiSize"><option value="1024x1280">4:5 (1024×1280)</option><option value="1024x1536">2:3 (1024×1536)</option><option value="auto">อัตโนมัติ</option></select></div>
+      <div class="row"><label class="hint" for="oaiModel">โมเดล</label><select id="oaiModel"><option value="gpt-image-2">gpt-image-2 (แนะนำ)</option><option value="gpt-image-1-mini">gpt-image-1-mini (ถูกกว่า)</option></select></div>
+      <button class="btn primary" id="oaiGen" type="button">สร้างงานศิลป์จากภาพที่เลือกอยู่</button>
+      <p class="hint" id="oaiState"></p>
+    </details>
   </section>
 
   <section class="panel ctl">
@@ -1066,12 +1092,78 @@ async function openPF(file){let j;try{j=JSON.parse(await file.text())}catch(e){j
   if(j.type==='settings'){const s=j.settings||{};for(const k of PROJ_KEYS)if(k in s)P[k]=s[k];if(!P.adj.curve)P.adj.curve=ADJ0().curve;store.set('pf_settings',P);
     const user=store.get('pf_presets',[]);for(const p of j.presets||[])if(!user.some(u=>u.n===p.n))user.push(p);store.set('pf_presets',user);
     for(const l of j.logos||[])if(!logos.some(x=>x.url===l.url))logos.push(l);store.set('pf_logos',logos);
+    const tp=store.get('pf_tpls',[]);for(const t of j.templates||[])if(!tp.some(x=>x.n===t.n))tp.push(t);store.set('pf_tpls',tp);if(j.templateValues)store.set('pf_tplv',Object.assign(store.get('pf_tplv',{}),j.templateValues));if(typeof paintTpl==='function')paintTpl();
     paintSettings();paintAdj();changed();msg(`นำเข้าการตั้งค่าแล้ว ✓ พรีเซ็ต ${(j.presets||[]).length} · ลายน้ำ ${(j.logos||[]).length}`)}}
 $('projSave').onclick=async()=>{if(!items.length){msg('ยังไม่มีภาพในงานนี้',true);return}
   const r=await offerText(`PhotoFlow งานแต่ง ${today()}.txt`,projectData());if(r!=='cancel')msg(r==='shared'?'ส่งไฟล์งานแต่งแล้ว ✓ เก็บไว้คู่กับภาพใน Google Drive':'บันทึกไฟล์งานแต่งในโฟลเดอร์ Download แล้ว ✓')};
 $('setSave').onclick=async()=>{const s={};PROJ_KEYS.forEach(k=>s[k]=P[k]);
-  const r=await offerText(`PhotoFlow การตั้งค่า ${today()}.txt`,{app:'PhotoFlow',type:'settings',v:1,saved:new Date().toISOString(),settings:s,presets:store.get('pf_presets',[]),logos});
+  const r=await offerText(`PhotoFlow การตั้งค่า ${today()}.txt`,{app:'PhotoFlow',type:'settings',v:1,saved:new Date().toISOString(),settings:s,presets:store.get('pf_presets',[]),logos,templates:store.get('pf_tpls',[]),templateValues:store.get('pf_tplv',{})});
   if(r!=='cancel')msg('ส่งออกการตั้งค่าและพรีเซ็ตแล้ว ✓')};
+/* art */
+/* ======================= AI art studio: prompt templates + OpenAI image generation ======================= */
+const TPL_FOLD=`สร้างงานศิลป์ Editorial เหนือจริงระดับพิพิธภัณฑ์จาก [บุคคล / แลนด์มาร์ก / วัตถุ / เมือง] ภายใต้แนวคิด “THE WORLD INSIDE A FOLD”
+
+วางตัวแบบหลักอย่างสง่างาม สมจริง และจดจำได้ บนพื้นกระดาษสีงาช้างอุ่นกว้างโล่ง โดยให้มี “รอยพับกระดาษ” ขนาดใหญ่ 1–2 รอยพาดผ่านองค์ประกอบอย่างประณีต ราวกับพื้นผิวของภาพกำลังถูกพับเปิดออก เผยให้เห็นโลกซ่อนเร้นที่อยู่ “ภายในรอยพับ” ไม่ใช่เพียงใต้พื้นผิว แต่เป็นมิติอีกชั้นหนึ่งที่เชื่อมโยงกับตัวแบบ
+
+ภายในรอยพับให้ประกอบด้วยฉากจิ๋ว สถาปัตยกรรม ภูมิทัศน์ ถนน ผู้คน ความทรงจำ สัญลักษณ์ วัตถุ และรายละเอียดวัฒนธรรมของ [บุคคล / สถานที่ / เมือง / ประเทศ] โดยให้รายละเอียดค่อยๆ แน่นขึ้นเมื่อมองลึกเข้าไปในรอยพับ ราวกับแผ่นกระดาษบางๆ กลายเป็นโลกทั้งใบ
+
+ภาษาภาพไล่จากวัสดุสมจริงด้านนอก สู่โลกด้านในที่ผสม miniature diorama, fine paper sculpture, graphite drawing, ink linework, engraving, halftone และรายละเอียดเพนต์จิ๋วอย่างประณีต เน้น micro-details ที่ค้นพบได้เมื่อมองใกล้
+
+องค์ประกอบมินิมอล มี Negative Space มาก ลำดับสายตาจากตัวแบบเรียบง่าย → รอยพับที่เผยโลกซ่อนอยู่ภายใน วัสดุหลักเป็น fine art paper, embossing, graphite, matte ink และรอยพิมพ์ทำมือ
+
+พาเลตงาช้าง ชาร์โคล ดำซีด เทาหิน เบจฝุ่น และสีเอกลักษณ์เพียง 1 สีจาก [ประเทศ / เมือง / ตัวแบบ] แสงนุ่มแบบแกลเลอรีร่วมสมัย อารมณ์สุขุม ละเมียด ลึกลับ กวี และหรูแบบพิพิธภัณฑ์
+
+Typography เล็กมาก: “[NAME]” ฟอนต์ Serif เรียบหรูแบบป้ายงานนิทรรศการ วางห่างจากภาพ
+
+ห้ามแฟนตาซีทั่วไป แสงเรืองเกินจริง นีออน ของตกแต่งสุ่ม หรือองค์ประกอบรก
+
+แนวตั้ง 4:5 — premium contemporary art poster — museum exhibition quality — surreal editorial photography + handcrafted paper art — ultra-detailed`;
+const TPL_BUILTIN=[{n:'THE WORLD INSIDE A FOLD',t:TPL_FOLD,b:1}];
+const TPL_HINTS={'บุคคล / แลนด์มาร์ก / วัตถุ / เมือง':'เช่น หญิงสาวในชุดไทยสีชมพูจากภาพที่แนบ','บุคคล / สถานที่ / เมือง / ประเทศ':'เช่น กรุงเทพฯ ประเทศไทย','ประเทศ / เมือง / ตัวแบบ':'เช่น ชมพูกลีบบัวจากชุดของตัวแบบ','NAME':'เช่น NAMTARA หรือ THAI'};
+let tplIdx=0,tplWork='';
+function tplAll(){return TPL_BUILTIN.concat(store.get('pf_tpls',[]))}
+function tplKeys(t){const s=new Set();for(const m of t.matchAll(/\[([^\]\n]{1,60})\]/g))s.add(m[1]);return [...s]}
+function tplVals(){return store.get('pf_tplv',{})}
+function tplFilled(){const v=tplVals();let missing=0;const out=tplWork.replace(/\[([^\]\n]{1,60})\]/g,(m,k)=>{const x=(v[k]||'').trim();if(!x){missing++;return m}return x});return {out,missing}}
+function paintTpl(){const all=tplAll();if(tplIdx>=all.length)tplIdx=0;
+  $('tplChips').innerHTML=all.map((t,i)=>`<button type="button" data-i="${i}" class="${i===tplIdx?'on':''}">${t.n.replace(/[<>&"]/g,'')}${t.b?'':' <span data-del="'+i+'">✕</span>'}</button>`).join('');
+  if(document.activeElement!==$('tplText'))$('tplText').value=tplWork;paintTplFields()}
+function paintTplFields(){const v=tplVals();
+  $('tplFields').innerHTML=tplKeys(tplWork).map(k=>`<div><label class="hint" style="display:block;margin-bottom:4px">${k.replace(/[<>&"]/g,'')}</label><input type="text" data-k="${k.replace(/"/g,'&quot;')}" value="${(v[k]||'').replace(/"/g,'&quot;')}" placeholder="${(TPL_HINTS[k]||'').replace(/"/g,'&quot;')}" style="width:100%"></div>`).join('')}
+function selectTpl(i){tplIdx=i;tplWork=tplAll()[i].t;paintTpl()}
+$('tplChips').onclick=e=>{const del=e.target.closest('[data-del]');if(del){const i=+del.dataset.del,u=store.get('pf_tpls',[]);u.splice(i-TPL_BUILTIN.length,1);store.set('pf_tpls',u);selectTpl(0);return}
+  const b=e.target.closest('button');if(b)selectTpl(+b.dataset.i)};
+$('tplFields').addEventListener('input',e=>{const k=e.target.dataset.k;if(k==null)return;const v=tplVals();v[k]=e.target.value;store.set('pf_tplv',v)});
+$('tplText').addEventListener('input',()=>{tplWork=$('tplText').value;paintTplFields()});
+$('tplSave').onclick=()=>{const n=$('tplName').value.trim();if(!n){msg('ตั้งชื่อแม่แบบก่อน',true);return}const u=store.get('pf_tpls',[]);u.push({n:n.slice(0,40),t:tplWork});store.set('pf_tpls',u);$('tplName').value='';tplIdx=tplAll().length-1;paintTpl();msg(`บันทึกแม่แบบ “${n}” แล้ว`)};
+$('tplCopy').onclick=async()=>{const {out,missing}=tplFilled();
+  try{await navigator.clipboard.writeText(out);msg(missing?`คัดลอกแล้ว ✓ (ยังไม่ได้กรอก ${missing} ช่อง ChatGPT จะเลือกให้เอง)`:'คัดลอก Prompt แล้ว ✓ ไปวางใน ChatGPT พร้อมแนบภาพได้เลย')}
+  catch(e){$('tplText').closest('details').open=true;$('tplText').value=out;$('tplText').select();msg('คัดลอกอัตโนมัติไม่ได้ · แตะค้างที่ข้อความแล้วเลือกคัดลอก',true)}};
+selectTpl(0);
+/* --- OpenAI generation --- */
+function oaiKey(){return store.get('pf_oai_key','')}
+function paintKey(){const k=oaiKey();$('oaiKeyState').textContent=k?`บันทึกคีย์แล้ว (…${k.slice(-4)}) · เก็บไว้ในเครื่องนี้เท่านั้น ไม่ถูกส่งออกไปกับไฟล์การตั้งค่า`:'คีย์เก็บไว้ในเครื่องนี้เท่านั้น ไม่ถูกส่งออกไปกับไฟล์การตั้งค่า · ขอคีย์ได้ที่ platform.openai.com'}
+$('oaiKeySave').onclick=()=>{const k=$('oaiKey').value.trim();if(k&&!/^sk-/.test(k)){msg('คีย์ควรขึ้นต้นด้วย sk-',true);return}store.set('pf_oai_key',k);$('oaiKey').value='';paintKey();msg(k?'บันทึกคีย์แล้ว ✓':'ลบคีย์แล้ว')};
+paintKey();
+async function oaiCall(fields,img){const fd=new FormData();for(const k in fields)fd.append(k,fields[k]);fd.append('image',img,'photo.jpg');
+  const r=await fetch('https://api.openai.com/v1/images/edits',{method:'POST',headers:{Authorization:'Bearer '+oaiKey()},body:fd});
+  let j=null;try{j=await r.json()}catch(e){}if(!r.ok)throw new Error((j&&j.error&&j.error.message)||('HTTP '+r.status));return j}
+$('oaiGen').onclick=async()=>{const it=items[cur];if(!it){msg('เลือกภาพตัวแบบก่อน',true);return}if(!oaiKey()){msg('ใส่ OpenAI API Key ก่อน',true);$('oaiKey').focus();return}
+  const {out:prompt}=tplFilled(),btn=$('oaiGen');btn.disabled=true;const t0=Date.now(),tick=setInterval(()=>$('oaiState').textContent=`กำลังสร้าง… ${Math.round((Date.now()-t0)/1000)} วินาที (ปกติ 30–120 วินาที อย่าปิดแอป)`,1000);
+  let wl=null;try{wl=await navigator.wakeLock?.request('screen')}catch(e){}
+  try{const bm=await bitmapOf(it),s=Math.min(1,1536/Math.max(bm.width,bm.height)),c=document.createElement('canvas');c.width=Math.round(bm.width*s);c.height=Math.round(bm.height*s);
+    c.getContext('2d').drawImage(bm,0,0,c.width,c.height);bm.close&&bm.close();const img=await new Promise(res=>c.toBlob(res,'image/jpeg',.92));
+    const f={model:$('oaiModel').value,prompt,size:$('oaiSize').value,quality:$('oaiQ').value,n:'1',input_fidelity:'high'};let j;
+    for(let attempt=0;attempt<3;attempt++){try{j=await oaiCall(f,img);break}catch(e){const m=String(e.message);
+      if(/input_fidelity/i.test(m)&&f.input_fidelity){delete f.input_fidelity;continue}
+      if(/size/i.test(m)&&f.size!=='1024x1536'){f.size='1024x1536';continue}throw e}}
+    const b64=j&&j.data&&j.data[0]&&j.data[0].b64_json;if(!b64)throw new Error('ไม่ได้รับภาพกลับมา');
+    const bin=Uint8Array.from(atob(b64),ch=>ch.charCodeAt(0)),name=it.name.replace(/\.[^.]+$/,'')+'_art.png';
+    await addFiles([new File([bin],name,{type:'image/png'})]);cur=items.length-1;paintTray();preview();
+    $('oaiState').textContent=`เสร็จใน ${Math.round((Date.now()-t0)/1000)} วินาที ✓ เพิ่มเป็นภาพใหม่ “${name}” แล้ว`;msg('สร้างงานศิลป์เสร็จแล้ว ✓ ปรับโทน ใส่ลายเซ็น แล้วกดทำทุกภาพได้เลย')}
+  catch(e){const m=String(e.message);$('oaiState').textContent='สร้างไม่สำเร็จ: '+(/api key|401|Incorrect/i.test(m)?'คีย์ไม่ถูกต้อง ตรวจสอบคีย์อีกครั้ง':/quota|billing|429/i.test(m)?'เครดิตไม่พอหรือใช้งานถี่เกินไป ตรวจสอบยอดเงินใน OpenAI':/safety|moderation|rejected/i.test(m)?'ระบบความปลอดภัยของ OpenAI ปฏิเสธภาพหรือข้อความนี้ ลองปรับ Prompt':m)}
+  finally{clearInterval(tick);btn.disabled=false;try{wl&&wl.release()}catch(e){}}};
+
 $('pfFile').onchange=async e=>{const fs=[...e.target.files];e.target.value='';for(const f of fs)await openPF(f)};
 
 function outName(it){return it.name.replace(/\.[^.]+$/,'')+'_PF.jpg'}
