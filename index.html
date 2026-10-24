@@ -398,9 +398,9 @@ body{background:#000}.app{background:var(--bg)}
 
 <div class="wherebox" id="whereBox" hidden><div class="wb-card">
   <b>บันทึก <span id="whereN"></span> ภาพแล้ว ✓</b>
-  <p>ภาพอยู่ในโฟลเดอร์ <b>Download (ดาวน์โหลด)</b> ของเครื่อง ชื่อไฟล์ลงท้ายด้วย <b>_PF.jpg</b> เช่น <span id="whereName"></span></p>
+  <p>ภาพอยู่ในโฟลเดอร์ <b>Download (ดาวน์โหลด)</b> ของเครื่อง ชื่อไฟล์ขึ้นต้นด้วย <b>PhotoFlow_</b> เช่น <span id="whereName"></span></p>
   <ol><li>แอป <b>คลังภาพ / Photos</b> → แท็บอัลบั้ม → อัลบั้ม <b>Download</b> หรือ <b>ดาวน์โหลด</b></li>
-  <li>หรือแอป <b>ไฟล์ของฉัน / File Manager</b> → <b>ดาวน์โหลด</b> (ค้นหาคำว่า <b>_PF</b> ได้)</li>
+  <li>หรือแอป <b>ไฟล์ของฉัน / File Manager</b> → <b>ดาวน์โหลด</b> (ค้นหาคำว่า <b>PhotoFlow</b> ได้)</li>
   <li>หรือใน Chrome: ⋮ → <b>ดาวน์โหลด</b></li></ol>
   <p class="hint">อยากให้ภาพไปอยู่ในคลังภาพ Google Photos หรือ Drive โดยตรง กด “แชร์ไปที่แอปอื่น” แล้วเลือกแอปปลายทาง</p>
   <div class="tools"><button class="btn primary" id="whereShare" type="button">แชร์ไปที่แอปอื่น</button><button class="btn" id="whereClose" type="button">เข้าใจแล้ว</button></div>
@@ -903,7 +903,7 @@ function paintTray(){
     <img src="${it.thumb}" alt=""><span class="st ${it.out?'done':''}">${it.out?'✓':i+1}</span></button>`).join('');
   const n=items.length,done=items.filter(x=>x.out).length;
   $('btnRun').disabled=!n||running;$('btnRun').textContent=n?`ทำทุกภาพ (${n})`:'ทำทุกภาพ';
-  $('btnSave').disabled=!done||running;$('btnZip').disabled=!done||running;$('btnDl').disabled=!done||running;
+  $('btnSave').disabled=!n||running;$('btnZip').disabled=!n||running;$('btnDl').disabled=!n||running;
 }
 $('tray').onclick=e=>{const b=e.target.closest('.thumb');if(!b)return;if(mode!=='compare')setMode('compare');cur=+b.dataset.i;if(typeof paintAdj==='function')setTimeout(paintAdj);paintTray();paintPer();preview()};
 async function addFiles(list){
@@ -1396,8 +1396,7 @@ $('btnKeep').onclick=()=>{const keep=items.filter(x=>x.heart);if(!keep.length){m
 $('btnMore').onclick=e=>{e.stopPropagation();$('morePanel').hidden=!$('morePanel').hidden};
 document.addEventListener('click',e=>{if(!e.target.closest('#morePanel'))$('morePanel').hidden=true});
 $('morePanel').onclick=e=>{const b=e.target.closest('button');if(!b)return;$('morePanel').hidden=true;const m=b.dataset.m;
-  if(m==='dl')$('btnDl').disabled?msg('กด “ทำทุกภาพ” ก่อน แล้วค่อยบันทึก',true):$('btnDl').click();
-  else if(m==='zip')$('btnZip').disabled?msg('กด “ทำทุกภาพ” ก่อน แล้วค่อยรวม ZIP',true):$('btnZip').click();else showTab('file')};
+  if(m==='dl')$('btnDl').click();else if(m==='zip')$('btnZip').click();else showTab('file')};
 /* undo (settings & per-photo edits) */
 const HIST=[];let lastSnap=null,histTimer=null;
 function snapNow(){const it=items[cur],o={P:{}};PROJ_KEYS.forEach(k=>o.P[k]=P[k]);o.idx=cur;o.adj=it&&it.adj||null;o.geo=it&&it.geo||null;o.wmc=it&&it.wmc||null;return JSON.stringify(o)}
@@ -1507,23 +1506,30 @@ $('oaiGen').onclick=async()=>{const it=items[cur];if(!it){msg('เลือก�
 
 $('pfFile').onchange=async e=>{const fs=[...e.target.files];e.target.value='';for(const f of fs)await openPF(f)};
 
-function outName(it){return it.name.replace(/\.[^.]+$/,'')+'_PF.jpg'}
+function outName(it){return 'PhotoFlow_'+it.name.replace(/\.[^.]+$/,'')+'.jpg'}
 function doneItems(){return items.filter(x=>x.out)}
+async function ensureDone(){if(!items.length){msg('ยังไม่มีภาพ · แตะ ＋ เพื่อเลือกภาพ',true);return false}if(items.some(x=>!x.out)){$('morePanel').hidden=true;msg('กำลังแต่งภาพตามค่าที่ตั้งไว้ก่อนบันทึก…');await $('btnRun').onclick()}return doneItems().length>0}
 function dlBlob(blob,name){const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),60000)}
-$('btnSave').onclick=async()=>{
+$('btnSave').onclick=async()=>{const need=items.some(x=>!x.out);if(!(await ensureDone()))return;if(need){msg('แต่งเสร็จแล้ว ✓ · กดปุ่มแชร์อีกครั้งเพื่อส่งภาพ');return}
   const files=doneItems().map(it=>new File([it.out],outName(it),{type:'image/jpeg'}));
   if(!(navigator.canShare&&navigator.canShare({files}))){msg('เครื่องนี้แชร์ไฟล์ตรงไม่ได้ · ใช้ปุ่ม “บันทึก” แทน',true);return}
   try{await navigator.share({files,title:'PhotoFlow'});msg(`ส่ง ${files.length} ภาพแล้ว ✓`)}
   catch(e){if(e.name==='AbortError')msg('ยกเลิกการแชร์');else msg('แชร์ไม่สำเร็จ ('+e.message+') · ลองแชร์ทีละน้อยลง หรือใช้ “บันทึก”',true)}
 };
-$('btnDl').onclick=async()=>{
+let pfDir=null;
+async function saveToFolder(d){ // File System Access: user picks a place once, we create/use a "PhotoFlow" folder inside it
+  if(!pfDir){const root=await window.showDirectoryPicker({id:'photoflow',mode:'readwrite',startIn:'pictures'});pfDir=await root.getDirectoryHandle('PhotoFlow',{create:true})}
+  else if((await pfDir.queryPermission({mode:'readwrite'}))!=='granted'&&(await pfDir.requestPermission({mode:'readwrite'}))!=='granted')throw new Error('no permission');
+  for(const it of d){const fh=await pfDir.getFileHandle(outName(it),{create:true}),w=await fh.createWritable();await w.write(it.out);await w.close()}}
+$('btnDl').onclick=async()=>{if(!(await ensureDone()))return;
+  if(window.showDirectoryPicker){const d=doneItems();try{await saveToFolder(d);msg(`บันทึก ${d.length} ภาพลงโฟลเดอร์ PhotoFlow แล้ว ✓`);return}catch(e){if(e.name==='AbortError'){msg('ยกเลิกการบันทึก');return}pfDir=null}}
   const d=doneItems();msg(`กำลังบันทึก ${d.length} ภาพ…`);
   for(const it of d){dlBlob(it.out,outName(it));await new Promise(r=>setTimeout(r,450))}
   msg(`บันทึก ${d.length} ภาพลงโฟลเดอร์ Download แล้ว ✓`);$('whereN').textContent=d.length;$('whereName').textContent=outName(d[0]);$('whereBox').hidden=false;
 };
 $('whereClose').onclick=()=>{$('whereBox').hidden=true};
 $('whereShare').onclick=()=>{$('whereBox').hidden=true;$('btnSave').click()};
-$('btnZip').onclick=async()=>{
+$('btnZip').onclick=async()=>{const need=items.some(x=>!x.out);if(!(await ensureDone()))return;if(need){msg('แต่งเสร็จแล้ว ✓ · กด “รวมเป็น ZIP” อีกครั้ง');return}
   const d=doneItems();msg('กำลังรวมไฟล์ ZIP…');
   const z=new JSZip();d.forEach(it=>z.file(outName(it),it.out));
   const blob=await z.generateAsync({type:'blob',compression:'STORE'});
