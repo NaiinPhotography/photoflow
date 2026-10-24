@@ -242,6 +242,7 @@ body{background:#000}.app{background:var(--bg)}
       <div class="actgrid">
         <button class="act" type="button" id="qaAuto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L15 9M14 4v2M19 9h2M17.5 5.5l1.5-1.5M10 4l.7 1.5L12 6l-1.3.5L10 8l-.7-1.5L8 6l1.3-.5z"/></svg><span>ปรับแสงอัตโนมัติ</span></button>
         <button class="act" type="button" id="qaCull"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM16.5 13l1.1 2.3 2.4.3-1.8 1.7.5 2.4-2.2-1.2-2.2 1.2.5-2.4-1.8-1.7 2.4-.3z"/></svg><span>คัดภาพเด่น</span></button>
+        <button class="act" type="button" id="qaBlur"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 8a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM7 19c.8-2.5 2.6-4 5-4s4.2 1.5 5 4M3 5h.01M6 3h.01M20 5h.01M18 3h.01M3 10h.01M21 10h.01"/></svg><span>เบลอฉากหลัง</span></button>
         <button class="act" type="button" id="qaPeople"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21h10M3.5 14.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 18H8z"/></svg><span>ลบผู้คนส่วนเกิน</span></button>
         <button class="act" type="button" id="qaStraight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2v16h16M2 6h16v16"/></svg><span>แก้ภาพเอียง</span></button>
         <button class="act" type="button" id="qaSubject"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7a5 5 0 1 0 0 10"/></svg><span>ตัวแบบ / พื้นหลัง</span></button>
@@ -257,7 +258,10 @@ body{background:#000}.app{background:var(--bg)}
     <div class="sl"><label for="glow">ผิวสว่างนวล <output id="glowV"></output></label><input type="range" id="glow" min="0" max="100"></div>
     <div class="sl"><label for="tone">ผิวขาวอมชมพู <output id="toneV"></output></label><input type="range" id="tone" min="0" max="100"></div>
     <p class="hint">เกลาเฉพาะผิว ลายผ้า เครื่องประดับ ตา และผม จะไม่ถูกทำให้เบลอ</p></div>
-    <div class="pn ctl" data-pane="layers"><div class="sw"><span>แยกตัวแบบ / พื้นหลัง</span><input type="checkbox" id="layersOn"></div>
+    <div class="pn ctl" data-pane="layers"><p class="sub-h">เบลอฉากหลัง (โบเก้)</p>
+    <div class="sl"><label for="bgBlur">ความเบลอ <output id="bgBlurV"></output></label><input type="range" id="bgBlur" min="0" max="100"></div>
+    <p class="hint">AI แยกตัวแบบ แล้วเบลอเฉพาะฉากหลังให้คล้ายเลนส์รูรับแสงกว้าง · เหมาะกับภาพจากมือถือ · 0 = ปิด</p>
+    <div class="sw" style="border-top:1px solid var(--line);padding-top:8px"><span>แยกตัวแบบ / พื้นหลัง</span><input type="checkbox" id="layersOn"></div>
     <p class="hint" id="segState">AI แยกตัวแบบออกจากฉาก แล้วปรับแสงแยกกัน · ครั้งแรกดาวน์โหลดประมาณ 26 MB (ครั้งเดียว)</p>
     <p class="sub-h">ตัวแบบ</p>
     <div class="sl"><label for="subjExp">ความสว่าง <output id="subjExpV"></output></label><input type="range" id="subjExp" min="-100" max="100"></div>
@@ -612,6 +616,26 @@ function relight(ctx,W,H,L,seg,er,faces){ // virtual secondary light on the subj
       const g=e*w*1.6,i=(y*W+x)*4;
       for(let c=0;c<3;c++){const v=lin[d[i+c]]*(1+g*col[c])+e*add*col[c];d[i+c]=OUT[Math.min(4096,Math.round(v/1.6*4096))]}}}
   ctx.putImageData(img,0,0)}
+function bgBlur(ctx,W,H,seg0,amt,faces){ // lens-like background blur: masked (subject excluded) blur in linear light so lights bloom, then composite
+  const seg={w:seg0.w,h:seg0.h,m:Float32Array.from(seg0.m)};
+  for(const f of faces||[]){const cx=(f.x+f.w/2)*seg.w,cy=(f.y+f.h*.62)*seg.h,rx=f.w*seg.w*.85,ry=f.h*seg.h*.92; // face, ears and dangling earrings
+    for(let y=Math.max(0,Math.floor(cy-ry));y<Math.min(seg.h,Math.ceil(cy+ry));y++)for(let x=Math.max(0,Math.floor(cx-rx));x<Math.min(seg.w,Math.ceil(cx+rx));x++){const q=((x-cx)/rx)**2+((y-cy)/ry)**2;if(q<1){const v=Math.min(1,(1-q)*2.2),j=y*seg.w+x;if(v>seg.m[j])seg.m[j]=v}}}
+  const k=Math.min(1,1000/Math.max(W,H)),sw=Math.max(8,Math.round(W*k)),sh=Math.max(8,Math.round(H*k)),n=sw*sh;
+  const sc=new OffscreenCanvas(sw,sh),sx=sc.getContext('2d',{willReadFrequently:true});sx.imageSmoothingQuality='high';sx.drawImage(ctx.canvas,0,0,sw,sh);const sd=sx.getImageData(0,0,sw,sh).data;
+  const ms=new Float32Array(n);for(let y=0;y<sh;y++){const yy=Math.min(seg.h-1,Math.floor((y+.5)/sh*seg.h));for(let x=0;x<sw;x++){const xx=Math.min(seg.w-1,Math.floor((x+.5)/sw*seg.w));ms[y*sw+x]=seg.m[yy*seg.w+xx]}}
+  const msd=gauss(ms,sw,sh,1.5),wb=new Float32Array(n);for(let i=0;i<n;i++){const t=Math.min(1,Math.max(0,(msd[i]-.15)/.3));wb[i]=1-t}
+  const sig=Math.max(1,amt*Math.max(sw,sh)*.016),den=gauss(wb,sw,sh,sig),sig2=Math.max(.8,sig*.3),den2=gauss(wb,sw,sh,sig2);
+  const near=gauss(ms,sw,sh,Math.max(2,Math.max(sw,sh)*.035)),NW=new Float32Array(n);for(let i=0;i<n;i++)NW[i]=Math.min(1,near[i]*1.4); // things close to the subject stay a little sharper, like real depth of field
+  const LIN=new Float32Array(256);for(let i=0;i<256;i++)LIN[i]=Math.pow(i/255,2.2);
+  const B=[0,1,2].map(c=>{const a=new Float32Array(n);for(let i=0;i<n;i++)a[i]=LIN[sd[i*4+c]]*wb[i];const g=gauss(a,sw,sh,sig),g2=gauss(a,sw,sh,sig2);const o=new Float32Array(n);
+    for(let i=0;i<n;i++){const dd=den[i],d2=den2[i],big=dd>1e-4?Math.min(1,g[i]/dd):LIN[sd[i*4+c]],sm2=d2>1e-4?Math.min(1,g2[i]/d2):big,t=NW[i];o[i]=255*Math.pow(big*(1-t)+sm2*t,1/2.2)}return o});
+  const img=ctx.getImageData(0,0,W,H),d=img.data,U=upsampler(sw,sh,W,H),SU=upsampler(seg.w,seg.h,W,H),sm=seg.m,gw=seg.w;
+  for(let y=0;y<H;y++){const r0=U.y0[y]*sw,r1=r0+sw,wy=U.yw[y],s0=SU.y0[y]*gw,s1=s0+gw,swy=SU.yw[y];
+    for(let x=0;x<W;x++){const si=SU.x0[x],sfx=SU.xw[x];let m=(sm[s0+si]*(1-sfx)+sm[s0+si+1]*sfx)*(1-swy)+(sm[s1+si]*(1-sfx)+sm[s1+si+1]*sfx)*swy;
+      m=Math.min(1,Math.max(0,(m-.3)/.35));m=m*m*(3-2*m);if(m>=.999)continue;
+      const xi=U.x0[x],fx=U.xw[x],i=(y*W+x)*4,q=1-m;
+      for(let c=0;c<3;c++){const bc=B[c],bv=(bc[r0+xi]*(1-fx)+bc[r0+xi+1]*fx)*(1-wy)+(bc[r1+xi]*(1-fx)+bc[r1+xi+1]*fx)*wy;d[i+c]=d[i+c]*m+bv*q}}}
+  ctx.putImageData(img,0,0)}
 function applyGeo(cv,ctx,g){ // returns new {cv,ctx}
   const r=warpGeo(ctx.getImageData(0,0,cv.width,cv.height),g),ncv=new OffscreenCanvas(r.out.width,r.out.height),nctx=ncv.getContext('2d',{willReadFrequently:true});
   nctx.putImageData(r.out,0,0);
@@ -675,6 +699,7 @@ onmessage=async e=>{const {id,bitmap,faces,p,logo,maxEdge,quality,want,seg,er,ge
     if(adj)adjust(ctx,W,H,adj);
     if(seg&&(p.layersOn||p.showMask))toneLayers(ctx,W,H,seg,er,p);
     if(light)relight(ctx,W,H,light,seg||null,er||null,faces);
+    if(seg&&p.bgBlur>0)bgBlur(ctx,W,H,seg,p.bgBlur,faces);
     const fs=Math.min(1,1000/Math.max(W,H)),sw=Math.max(1,Math.round(W*fs)),sh=Math.max(1,Math.round(H*fs));
     const scv=new OffscreenCanvas(sw,sh),sctx=scv.getContext('2d',{willReadFrequently:true});sctx.imageSmoothingQuality='high';sctx.drawImage(cv,0,0,sw,sh);
     const small=sctx.getImageData(0,0,sw,sh);
@@ -723,7 +748,7 @@ function warpGeo(src,g){ // src: ImageData. returns {out:ImageData, mask:Uint8Ar
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const DEF={cullN:50,styleV1:false,light:{on:false,pos:'front',str:.45,soft:.6,tone:'warm',fill:true,cx:.3,cy:.25},layersOn:false,subjExp:0,subjSh:0,bgExp:0,bgSh:0,retouchOn:true,smooth:.3,sharpen:.2,glow:.15,tone:.5,wmOn:true,outSize:0,
+const DEF={cullN:50,bgBlur:0,styleV1:false,light:{on:false,pos:'front',str:.45,soft:.6,tone:'warm',fill:true,cx:.3,cy:.25},layersOn:false,subjExp:0,subjSh:0,bgExp:0,bgSh:0,retouchOn:true,smooth:.3,sharpen:.2,glow:.15,tone:.5,wmOn:true,outSize:0,
   wm:{mode:'logo',text:'Naiin photography',color:'auto',font:'Ms Madi',shadow:false,tint:'mono',size:33,opacity:90,position:'br'}};
 const P=Object.assign({},DEF,store.get('pf_settings',{}));P.light=Object.assign({},DEF.light,P.light||{});P.wm=Object.assign({},DEF.wm,P.wm||{});if(P.wm.font==='Allura')P.wm.font='Ms Madi';
 let logoBitmap=null,logos=store.get('pf_logos',[]);
@@ -761,7 +786,7 @@ async function detectFaces(bitmap){
 const POS=['tl','tc','tr','ml','mc','mr','bl','bc','br'];
 function paintSettings(){if(typeof paintLight==='function')setTimeout(paintLight);
   $('retouchOn').checked=P.retouchOn;$('wmOn').checked=P.wmOn;
-  for(const k of ['smooth','sharpen','glow','tone','subjExp','subjSh','bgExp','bgSh']){$(k).value=Math.round(P[k]*100);$(k+'V').textContent=$(k).value}$('layersOn').checked=P.layersOn;
+  for(const k of ['smooth','sharpen','glow','tone','bgBlur','subjExp','subjSh','bgExp','bgSh']){$(k).value=Math.round(P[k]*100);$(k+'V').textContent=$(k).value}$('layersOn').checked=P.layersOn;
   $('wmText').value=P.wm.text;$('wmFont').value=P.wm.font;$('wmShadow').checked=!!P.wm.shadow;$('logoTint').value=P.wm.tint==='orig'?'orig':'mono';if(/^#/.test(P.wm.color))$('wmColor').value=P.wm.color;document.querySelectorAll('#wmColorSeg button').forEach(b=>b.classList.toggle('on',b.dataset.c===P.wm.color));const mono=P.wm.mode!=='logo'||P.wm.tint!=='orig';$('colorRow').hidden=!mono;$('autoHint').hidden=!mono||P.wm.color!=='auto';$('wmSize').value=P.wm.size;$('wmSizeV').textContent=P.wm.size+'%';
   $('wmOp').value=P.wm.opacity;$('wmOpV').textContent=P.wm.opacity+'%';$('outSize').value=String(P.outSize);
   $('mText').classList.toggle('on',P.wm.mode!=='logo');$('mLogo').classList.toggle('on',P.wm.mode==='logo');
@@ -773,7 +798,8 @@ let pvT=0;function schedPreview(){if(pvT)return;pvT=setTimeout(()=>{pvT=0;previe
 function changed(){paintPer();store.set('pf_settings',P);items.forEach(it=>{it.out=null});paintTray();schedPreview()}
 for(const k of ['subjExp','subjSh','bgExp','bgSh'])$(k).addEventListener('input',()=>{P[k]=$(k).value/100;$(k+'V').textContent=$(k).value;changed()});
 $('layersOn').onchange=()=>{P.layersOn=$('layersOn').checked;if(P.layersOn)loadSeg().catch(()=>{});changed()};
-for(const k of ['smooth','sharpen','glow','tone'])$(k).addEventListener('input',()=>{P[k]=$(k).value/100;$(k+'V').textContent=$(k).value;changed()});
+$('bgBlur').addEventListener('input',()=>{if(P.bgBlur===0)loadSeg().catch(()=>{})});
+for(const k of ['smooth','sharpen','glow','tone','bgBlur'])$(k).addEventListener('input',()=>{P[k]=$(k).value/100;$(k+'V').textContent=$(k).value;changed()});
 $('retouchOn').onchange=()=>{P.retouchOn=$('retouchOn').checked;changed()};
 $('wmOn').onchange=()=>{P.wmOn=$('wmOn').checked;changed()};
 $('wmText').addEventListener('input',()=>{P.wm.text=$('wmText').value;changed()});
@@ -874,7 +900,7 @@ if(!('webkitdirectory' in document.createElement('input')))$('folderBtn').hidden
 $('btnClear').onclick=()=>{items.length=0;cur=-1;pvRun++;paintTray();$('clearRow').hidden=true;$('empty').hidden=false;['divider','labL','labR'].forEach(k=>$(k).hidden=true);['cvBefore','cvAfter'].forEach(k=>{const c=$(k);c.width=c.width});$('faceInfo').textContent='';prog(0);msg('เลือกภาพเพื่อเริ่ม')};
 async function bitmapOf(it){return createImageBitmap(it.file,{imageOrientation:'from-image'})}
 async function facesOf(it){if(it.faces)return it.faces;const bm=await bitmapOf(it);it.faces=await detectFaces(bm);bm.close&&bm.close();return it.faces}
-function params(){return {layersOn:P.layersOn,subjExp:P.subjExp,subjSh:P.subjSh,bgExp:P.bgExp,bgSh:P.bgSh,showMask,retouchOn:P.retouchOn,smooth:P.smooth,sharpen:P.sharpen,glow:P.glow,tone:P.tone,wmOn:P.wmOn,wm:P.wm}}
+function params(){return {layersOn:P.layersOn,subjExp:P.subjExp,subjSh:P.subjSh,bgExp:P.bgExp,bgSh:P.bgSh,showMask,retouchOn:P.retouchOn,smooth:P.smooth,sharpen:P.sharpen,glow:P.glow,tone:P.tone,bgBlur:P.bgBlur,wmOn:P.wmOn,wm:P.wm}}
 
 /* --- preview --- */
 let pvRun=0;
@@ -974,7 +1000,7 @@ function eraseData(it){if(!it.erase||!it.eraseUsed)return null;const c=it.erase,
   for(let i=0;i<a.length;i++)a[i]=d[i*4+3];return {w:c.width,h:c.height,a}}
 async function extrasFor(it){const x={},tr=[];
   if(P.light.on){x.light=await lightFor(it)}
-  if(P.layersOn||showMask||P.light.on){try{const s=await segOf(it);x.seg={w:s.w,h:s.h,m:s.m.slice()};tr.push(x.seg.m.buffer)}catch(e){}}
+  if(P.layersOn||showMask||P.light.on||P.bgBlur>0){try{const s=await segOf(it);x.seg={w:s.w,h:s.h,m:s.m.slice()};tr.push(x.seg.m.buffer)}catch(e){}}
   const er=eraseData(it);if(er){x.er=er;tr.push(er.a.buffer)}
   if(geoActive(it.geo))x.geo=it.geo;
   const ad=adjFor(it);if(adjActive(ad))x.adj=ad;
@@ -1270,6 +1296,7 @@ $('qaPeople').onclick=async()=>{if(!items.length){msg('เลือกภาพ�
   while(Date.now()-t0<60000&&$('autoInfo').textContent==='กำลังหาคนอื่นในภาพ…')await new Promise(r=>setTimeout(r,200));
   if(!$('btnAuto').hidden){$('btnAuto').click();msg('ทำเครื่องหมายคนอื่นแล้ว · กด “เสร็จ” เพื่อลบ หรือระบายเพิ่มได้')}};
 $('qaStraight').onclick=async()=>{if(!items.length){msg('เลือกภาพก่อน',true);return}showTab('crop');await new Promise(r=>setTimeout(r,400));$('btnAutoAng').click()};
+$('qaBlur').onclick=()=>{showTab('layers');if(!(P.bgBlur>0)){loadSeg().catch(()=>{});P.bgBlur=.45;paintSettings();changed()}};
 $('qaSubject').onclick=()=>{showTab('layers');if(!$('layersOn').checked){$('layersOn').checked=true;$('layersOn').dispatchEvent(new Event('change'))}};
 /* library grid */
 function paintGrid(){$('gridCnt').textContent=items.length||'';$('gvInfo').textContent=items.length?`${items.length} ภาพ · ทำแล้ว ${items.filter(x=>x.out).length}`:'ยังไม่มีภาพ แตะ ＋ เพื่อเพิ่ม';
@@ -1368,7 +1395,7 @@ const _preview=preview;preview=function(){trackHist();return _preview.apply(this
   pane.addEventListener('pointerup',end);pane.addEventListener('pointercancel',end);})();
 /* --- sharing & saving --- */
 /* ======================= edit file (continue on any device) + settings backup ======================= */
-const PROJ_KEYS=['retouchOn','smooth','sharpen','glow','tone','wmOn','wm','outSize','layersOn','subjExp','subjSh','bgExp','bgSh','adj','light'];
+const PROJ_KEYS=['retouchOn','smooth','sharpen','glow','tone','wmOn','wm','outSize','layersOn','subjExp','subjSh','bgExp','bgSh','adj','light','bgBlur'];
 let pendingProject=null;
 function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 async function offerText(name,obj){ // .txt so Android can share it straight to Google Drive / Line
