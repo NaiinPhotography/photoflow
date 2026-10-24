@@ -157,6 +157,8 @@ body{height:100%;overflow:hidden;padding:0!important}
 .tabs button i{font-style:normal;font-size:19px;line-height:1}
 .tabs button.on{color:var(--accent);background:var(--accent-soft)}
 #toolRow{display:none!important}
+.pane input[type=range]{pointer-events:none}.pane .sl{touch-action:pan-y;user-select:none;-webkit-user-select:none;padding:4px 0}
+.pane .sl.drag output{color:var(--accent);font-weight:600}
 :root,:root[data-theme="light"],:root[data-theme="dark"]{--bg:#0d0d0f;--surface:#1b1b1e;--ink:#f1f1f3;--muted:#9b9ba3;--line:#2c2c31;--accent:#3d7cf5;--accent-soft:#1b2c4d;--veil:rgba(0,0,0,.6);color-scheme:dark}
 body{background:#000}.app{background:var(--bg)}
 .view{background:#000}
@@ -683,7 +685,8 @@ function paintSettings(){
   $('pos').innerHTML=POS.map(p=>`<button type="button" data-p="${p}" aria-label="ตำแหน่ง ${p}" class="${p===P.wm.position?'on':''}"></button>`).join('');
   const cl=curLogo();$('lib').innerHTML=allLogos().map(l=>`<div class="it ${cl&&l.id===cl.id?'on':''}" data-id="${l.id}" role="button" tabindex="0" aria-label="เลือกลายน้ำ"><img src="${l.url}" alt="">${l.builtin?'':`<button class="x" type="button" data-del="${l.id}" aria-label="ลบ">✕</button>`}</div>`).join('');
 }
-let pvT;function changed(){paintPer();store.set('pf_settings',P);items.forEach(it=>{it.out=null});paintTray();clearTimeout(pvT);pvT=setTimeout(preview,350)}
+let pvT=0;function schedPreview(){if(pvT)return;pvT=setTimeout(()=>{pvT=0;preview()},280)}
+function changed(){paintPer();store.set('pf_settings',P);items.forEach(it=>{it.out=null});paintTray();schedPreview()}
 for(const k of ['subjExp','subjSh','bgExp','bgSh'])$(k).addEventListener('input',()=>{P[k]=$(k).value/100;$(k+'V').textContent=$(k).value;changed()});
 $('layersOn').onchange=()=>{P.layersOn=$('layersOn').checked;if(P.layersOn)loadSeg().catch(()=>{});changed()};
 for(const k of ['smooth','sharpen','glow'])$(k).addEventListener('input',()=>{P[k]=$(k).value/100;$(k+'V').textContent=$(k).value;changed()});
@@ -1019,7 +1022,7 @@ function paintAdj(){const a=curAdj();
   const it=items[cur];$('scAll').classList.toggle('on',adjScope==='all');$('scThis').classList.toggle('on',adjScope==='this');$('scThis').disabled=!it;
   $('scHint').textContent=adjScope==='this'?'ปรับเฉพาะภาพที่เลือกอยู่ ภาพอื่นใช้ค่าหลัก':(items.some(x=>x.adj)?'ค่าหลักใช้กับทุกภาพ (ยกเว้นภาพที่ปรับแยกไว้)':'ค่าหลักใช้กับทุกภาพในชุด เหมือน Copy Settings');
   paintPresets();if(typeof drawCurve==='function')drawCurve()}
-function adjChanged(){if(adjScope==='this'){const it=items[cur];if(it){it.out=null;paintTray();clearTimeout(pvT);pvT=setTimeout(preview,350)}}else{store.set('pf_settings',P);changed()}}
+function adjChanged(){if(adjScope==='this'){const it=items[cur];if(it){it.out=null;paintTray();schedPreview()}}else{store.set('pf_settings',P);changed()}}
 buildAdjUI();
 $('adjBody').addEventListener('input',e=>{const t=e.target,a=curAdj();if(t.dataset.k){a[t.dataset.k]=t.value/100;$(t.id+'V').textContent=t.value}
   else if(t.dataset.j!=null){a.hsl[hslSel*3+ +t.dataset.j]=t.value/100;$(t.id+'V').textContent=t.value}else return;adjChanged()});
@@ -1144,6 +1147,18 @@ $('btnUndoAll').onclick=()=>{const prev=HIST.pop();if(!prev)return;const o=JSON.
 const _preview=preview;preview=function(){trackHist();return _preview.apply(this,arguments)};
 {const st=store.get('pf_tab',['edit','light']);const t=Array.isArray(st)?st[0]:'edit',s3=Array.isArray(st)?st[1]:'light';showTab(t==='erase'||t==='crop'||!t?'edit':t,s3||'light')}fitStage();
 
+
+/* calm sliders: drag anywhere on the row to change gradually; taps and vertical scrolling never move them */
+(function(){const pane=$('pane');let d=null,last={r:null,t:0};
+  const setV=(r,v)=>{const st=+r.step||1,mn=+r.min,mx=+r.max;v=Math.round(v/st)*st;v=Math.max(mn,Math.min(mx,v));v=+v.toFixed(st<1?1:0);if(+r.value!==v){r.value=v;r.dispatchEvent(new Event('input',{bubbles:true}))}};
+  pane.addEventListener('pointerdown',e=>{const sl=e.target.closest('.sl');if(!sl)return;const r=sl.querySelector('input[type=range]');if(!r||r.disabled)return;
+    const now=Date.now();if(last.r===r&&now-last.t<320){last={r:null,t:0};if(+r.min<=0&&+r.max>=0){setV(r,0);r.dispatchEvent(new Event('change',{bubbles:true}))}return}last={r,t:now};
+    d={sl,r,x:e.clientX,y:e.clientY,v:+r.value,on:false,id:e.pointerId,w:sl.getBoundingClientRect().width}});
+  pane.addEventListener('pointermove',e=>{if(!d||e.pointerId!==d.id)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;
+    if(!d.on){if(Math.abs(dx)>10&&Math.abs(dx)>Math.abs(dy)*1.3){d.on=true;d.x=e.clientX;d.sl.classList.add('drag');try{d.sl.setPointerCapture(e.pointerId)}catch(_){}}else if(Math.abs(dy)>10)d=null;return}
+    e.preventDefault();const span=(+d.r.max)-(+d.r.min),sens=span/(d.w*2);setV(d.r,d.v+(e.clientX-d.x)*sens)});
+  const end=e=>{if(!d||(e&&e.pointerId!==d.id))return;if(d.on){d.sl.classList.remove('drag');d.r.dispatchEvent(new Event('change',{bubbles:true}))}d=null};
+  pane.addEventListener('pointerup',end);pane.addEventListener('pointercancel',end);})();
 /* --- sharing & saving --- */
 /* ======================= edit file (continue on any device) + settings backup ======================= */
 const PROJ_KEYS=['retouchOn','smooth','sharpen','glow','wmOn','wm','outSize','layersOn','subjExp','subjSh','bgExp','bgSh','adj'];
