@@ -211,7 +211,7 @@ body{background:#000}.app{background:var(--bg)}
   <div class="morepanel" id="morePanel" hidden><button type="button" data-m="dl">บันทึกภาพลงเครื่อง</button><button type="button" data-m="zip">รวมเป็น ZIP</button><button type="button" data-m="file">ไฟล์งานแต่ง / การตั้งค่า / เพิ่มภาพ</button></div>
   <div class="msgbar"><div class="prog"><i id="progBar"></i></div><div class="msg" id="msg" aria-live="polite">แตะ ＋ เพื่อเลือกภาพ</div></div>
   <main class="view" id="view">
-    <div class="gridview" id="gridView" hidden><div class="gv-head"><b>คลังภาพในงานนี้</b><span class="hint" id="gvInfo"></span></div><div class="gv-tools"><button class="btn gold" id="btnCull" type="button">✨ คัดภาพ AI</button><button class="btn primary" id="btnKeep" type="button" hidden>แต่งเฉพาะภาพ ♥</button></div><div class="chips" id="gvFilter" hidden><button type="button" data-f="all">ทั้งหมด</button><button type="button" data-f="ai">AI คัด</button><button type="button" data-f="rest">ภาพอื่น</button><button type="button" data-f="heart">♥ ที่เลือก</button></div><p class="hint" id="cullHint" hidden>AI เลือกภาพที่คมชัดและจัดองค์ประกอบดี ภาพที่ถ่ายรัวซ้ำกันจะเลือกเฉพาะภาพที่ดีที่สุด · แตะ ♥ เพื่อเลือก/ยกเลิก · ดู “ภาพอื่น” เพื่อเพิ่มภาพที่อารมณ์ดีหรือ Candid · แตะภาพเพื่อเปิดดูใหญ่</p><div class="gv" id="gv"></div></div>
+    <div class="gridview" id="gridView" hidden><div class="gv-head"><b>คลังภาพในงานนี้</b><span class="hint" id="gvInfo"></span></div><div class="gv-tools"><button class="btn gold" id="btnCull" type="button">✨ คัดภาพ AI</button><label class="hint" style="display:flex;align-items:center;gap:6px">AI คัดไว้ประมาณ <select id="cullN" aria-label="จำนวนภาพที่ AI คัด"><option value="30">30</option><option value="50">50</option><option value="80">80</option></select> ภาพ</label><button class="btn primary" id="btnKeep" type="button" hidden>แต่งเฉพาะภาพ ♥</button></div><div class="chips" id="gvFilter" hidden><button type="button" data-f="all">ทั้งหมด</button><button type="button" data-f="ai">AI คัด</button><button type="button" data-f="rest">ภาพอื่น</button><button type="button" data-f="heart">♥ ที่เลือก</button></div><p class="hint" id="cullHint" hidden>AI เลือกภาพที่คมชัดและจัดองค์ประกอบดี ภาพที่ถ่ายรัวซ้ำกันจะเลือกเฉพาะภาพที่ดีที่สุด · แตะ ♥ เพื่อเลือก/ยกเลิก · ดู “ภาพอื่น” เพื่อเพิ่มภาพที่อารมณ์ดีหรือ Candid · แตะภาพเพื่อเปิดดูใหญ่</p><div class="gv" id="gv"></div></div>
     <div class="stage" id="stage">
       <canvas id="cvBefore"></canvas>
       <canvas id="cvAfter" class="after"></canvas>
@@ -341,6 +341,7 @@ body{background:#000}.app{background:var(--bg)}
         <select id="outSize" aria-label="ขนาดไฟล์ที่บันทึก">
           <option value="0">ขนาดเดิม</option>
           <option value="4000">ด้านยาว 4000 px</option>
+          <option value="3508">A4 พิมพ์ได้ 3508 px (~2–3 MB)</option>
           <option value="2048">2048 px (Facebook)</option>
         </select></div>
     </div>
@@ -722,7 +723,7 @@ function warpGeo(src,g){ // src: ImageData. returns {out:ImageData, mask:Uint8Ar
 const $=id=>document.getElementById(id);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
              set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
-const DEF={styleV1:false,light:{on:false,pos:'front',str:.45,soft:.6,tone:'warm',fill:true,cx:.3,cy:.25},layersOn:false,subjExp:0,subjSh:0,bgExp:0,bgSh:0,retouchOn:true,smooth:.3,sharpen:.2,glow:.15,tone:.5,wmOn:true,outSize:0,
+const DEF={cullN:50,styleV1:false,light:{on:false,pos:'front',str:.45,soft:.6,tone:'warm',fill:true,cx:.3,cy:.25},layersOn:false,subjExp:0,subjSh:0,bgExp:0,bgSh:0,retouchOn:true,smooth:.3,sharpen:.2,glow:.15,tone:.5,wmOn:true,outSize:0,
   wm:{mode:'logo',text:'Naiin photography',color:'auto',font:'Ms Madi',shadow:false,tint:'mono',size:33,opacity:90,position:'br'}};
 const P=Object.assign({},DEF,store.get('pf_settings',{}));P.light=Object.assign({},DEF.light,P.light||{});P.wm=Object.assign({},DEF.wm,P.wm||{});if(P.wm.font==='Allura')P.wm.font='Ms Madi';
 let logoBitmap=null,logos=store.get('pf_logos',[]);
@@ -926,7 +927,7 @@ $('btnRun').onclick=async()=>{
     if(it.out){continue}
     msg(`กำลังทำภาพ ${i+1}/${items.length} · ${it.name}`);prog(i/items.length);
     try{const faces=await facesOf(it);const ex=await extrasFor(it);const bm=await bitmapOf(it);const logo=await getWm(it);
-      const r=await runWorker(Object.assign({bitmap:bm,faces,p:params(),logo,maxEdge:P.outSize,quality:.93,want:'blob'},ex.x),[bm].concat(wmTransfer(logo),ex.tr));
+      const r=await runWorker(Object.assign({bitmap:bm,faces,p:params(),logo,maxEdge:P.outSize,quality:(+P.outSize&&+P.outSize<=3508)?.9:.93,want:'blob'},ex.x),[bm].concat(wmTransfer(logo),ex.tr));
       it.out=r.blob;}catch(err){fail++;console.error(err)}
     paintTray();
   }
@@ -1320,7 +1321,7 @@ function cullPick(){const A=items.filter(x=>x.cull);if(!A.length)return;
   const ms=med(A.map(x=>x.cull.score));
   for(let b=0;b<=burst;b++){const g=A.filter(x=>x.cull.burst===b).sort((p,q)=>q.cull.score-p.cull.score),kk=Math.max(1,Math.ceil(g.length/3));
     g.forEach((it,r)=>{it.cull.pick=r<kk&&!it.cull.blurry&&it.cull.score>=ms*.8;})}
-  const P2=A.filter(x=>x.cull.pick).sort((p,q)=>q.cull.score-p.cull.score),cap=Math.max(1,Math.ceil(A.length*.4));P2.slice(cap).forEach(x=>{x.cull.pick=false}); // keep the shortlist short
+  const P2=A.filter(x=>x.cull.pick).sort((p,q)=>q.cull.score-p.cull.score),cap=Math.max(1,Math.min(+P.cullN||50,Math.ceil(A.length*.4)));P2.slice(cap).forEach(x=>{x.cull.pick=false}); // keep the shortlist short
   for(const it of A)it.heart=!!it.cull.pick}
 async function runCull(){if(culling){cullStop=true;return}if(!items.length){msg('เลือกภาพหรือทั้งโฟลเดอร์ก่อน',true);return}
   culling=true;cullStop=false;$('btnCull').textContent='■ หยุด';$('gridView').hidden=false;paintGrid();await loadFace();const t0=Date.now();
@@ -1331,6 +1332,7 @@ async function runCull(){if(culling){cullStop=true;return}if(!items.length){msg(
   msg(`AI คัดไว้ ${n} จาก ${items.length} ภาพ${nb?` · เบลอ/หลุดโฟกัส ${nb}`:''} · ${Math.round((Date.now()-t0)/1000)} วินาที`);setTimeout(()=>prog(0),1500)}
 $('btnCull').onclick=()=>{if(!culling&&items.some(x=>x.cull)){items.forEach(x=>{x.cull=null})}runCull()};
 $('qaCull').onclick=()=>{$('gridView').hidden=false;if(items.some(x=>x.cull)){gvF='ai';paintGrid();return}runCull()};
+$('cullN').value=String(P.cullN||50);$('cullN').onchange=()=>{P.cullN=+$('cullN').value;store.set('pf_settings',P);if(items.some(x=>x.cull)&&!culling){cullPick();gvF='ai';paintGrid();msg(`AI คัดไว้ ${items.filter(x=>x.cull&&x.cull.pick).length} ภาพ`)}};
 $('gvFilter').onclick=e=>{const b=e.target.closest('button');if(b){gvF=b.dataset.f;paintGrid()}};
 $('btnKeep').onclick=()=>{const keep=items.filter(x=>x.heart);if(!keep.length){msg('ยังไม่ได้เลือกภาพ ♥',true);return}
   const n0=items.length;items.splice(0,items.length,...keep);cur=0;gvF='all';paintTray();$('gridView').hidden=true;preview();
