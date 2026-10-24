@@ -532,11 +532,55 @@ function dilateMax(a,w,h,r){const t=new Uint8Array(a.length),o=new Uint8Array(a.
   for(let y=0;y<h;y++){const row=y*w;for(let x=0;x<w;x++){let m=0;const x0=Math.max(0,x-r),x1=Math.min(w-1,x+r);for(let k=x0;k<=x1;k++){const v=a[row+k];if(v>m){m=v;if(m===255)break}}t[row+x]=m}}
   for(let x=0;x<w;x++)for(let y=0;y<h;y++){let m=0;const y0=Math.max(0,y-r),y1=Math.min(h-1,y+r);for(let k=y0;k<=y1;k++){const v=t[k*w+x];if(v>m){m=v;if(m===255)break}}o[y*w+x]=m}
   return o}
+function patchFill(init,mask,W0,H0){ // Wexler-style: PatchMatch nearest-neighbour search + voting, coarse to fine
+  const PR=3,levels=[];let img=Float32Array.from(init),m=Uint8Array.from(mask,v=>v?1:0),w=W0,h=H0;
+  levels.push({img,m,w,h});
+  while(Math.max(w,h)>80){const nw=Math.ceil(w/2),nh=Math.ceil(h/2),ni=new Float32Array(nw*nh*3),nm=new Uint8Array(nw*nh),cnt=new Float32Array(nw*nh);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x,j=(y>>1)*nw+(x>>1);cnt[j]++;ni[j*3]+=img[i*3];ni[j*3+1]+=img[i*3+1];ni[j*3+2]+=img[i*3+2];if(m[i])nm[j]=1}
+    for(let j=0;j<nw*nh;j++){ni[j*3]/=cnt[j];ni[j*3+1]/=cnt[j];ni[j*3+2]/=cnt[j]}
+    img=ni;m=nm;w=nw;h=nh;levels.push({img,m,w,h});let hole=0;for(let j=0;j<nw*nh;j++)hole+=nm[j];if(hole<30)break}
+  let seed=13579;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/4294967296};
+  let prev=null;
+  for(let L=levels.length-1;L>=0;L--){const {img,m,w,h}=levels[L],n=w*h;
+    if(prev){for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(!m[i])continue;const pi=Math.min(prev.h-1,y>>1)*prev.w+Math.min(prev.w-1,x>>1);for(let c=0;c<3;c++)img[i*3+c]=prev.img[pi*3+c]}}
+    const bad=new Uint8Array(n);for(let i=0;i<n;i++)if(m[i]){const x=i%w,y=(i/w)|0;for(let yy=Math.max(0,y-PR);yy<=Math.min(h-1,y+PR);yy++)for(let xx=Math.max(0,x-PR);xx<=Math.min(w-1,x+PR);xx++)bad[yy*w+xx]=1}
+    let hx0=w,hy0=h,hx1=0,hy1=0;for(let i=0;i<n;i++)if(m[i]){const x=i%w,y=(i/w)|0;if(x<hx0)hx0=x;if(x>hx1)hx1=x;if(y<hy0)hy0=y;if(y>hy1)hy1=y}
+    const RW=Math.max(12,Math.round(Math.max(hx1-hx0,hy1-hy0)*1.3)),wx0=hx0-RW,wy0=hy0-RW,wx1=hx1+RW,wy1=hy1+RW; // only borrow from the neighbourhood (same surface, same focus)
+    const ok=i=>{const x=i%w,y=(i/w)|0;return x>=PR&&y>=PR&&x<w-PR&&y<h-PR&&x>=wx0&&x<=wx1&&y>=wy0&&y<=wy1&&!bad[i]};
+    const valid=[];for(let i=0;i<n;i++)if(ok(i))valid.push(i);if(!valid.length){prev={img,w,h,nnf:null};continue}
+    const T=[];for(let i=0;i<n;i++)if(bad[i])T.push(i);
+    const nnf=new Int32Array(n).fill(-1),nd=new Float32Array(n);
+    const dist=(t,sidx,lim)=>{const tx=t%w,ty=(t/w)|0,sx=sidx%w,sy=(sidx/w)|0;let d=0,c=0;
+      for(let dy=-PR;dy<=PR;dy++){const ty2=ty+dy;if(ty2<0||ty2>=h)continue;for(let dx=-PR;dx<=PR;dx++){const tx2=tx+dx;if(tx2<0||tx2>=w)continue;
+        const a=(ty2*w+tx2)*3,b=((sy+dy)*w+sx+dx)*3,e0=img[a]-img[b],e1=img[a+1]-img[b+1],e2=img[a+2]-img[b+2];d+=e0*e0+e1*e1+e2*e2;c++}if(d>lim*c*1.0001&&c>8)return 1e18}
+      return d/Math.max(1,c)};
+    for(const t of T){let s0=-1;if(prev&&prev.nnf){const tx=t%w,ty=(t/w)|0,pt=Math.min(prev.h-1,ty>>1)*prev.w+Math.min(prev.w-1,tx>>1),ps=prev.nnf[pt];
+        if(ps>=0){const sx=(ps%prev.w)*2+(tx&1),sy=((ps/prev.w)|0)*2+(ty&1),c=sy*w+sx;if(sx<w&&sy<h&&ok(c))s0=c}}
+      if(s0<0)s0=valid[(rnd()*valid.length)|0];nnf[t]=s0;nd[t]=dist(t,s0,1e18)}
+    const iters=L===levels.length-1?8:5;
+    for(let it=0;it<iters;it++){
+      const order=it%2?T.slice().reverse():T,st=it%2?-1:1;
+      for(const t of order){const tx=t%w,ty=(t/w)|0;
+        for(const [nx,ny] of [[tx-st,ty],[tx,ty-st]]){if(nx<0||ny<0||nx>=w||ny>=h)continue;const nb=ny*w+nx,ns=nnf[nb];if(ns<0)continue;const c=ns+(tx-nx)+(ty-ny)*w,cx=(ns%w)+(tx-nx),cy=((ns/w)|0)+(ty-ny);
+          if(cx<0||cy<0||cx>=w||cy>=h||!ok(c))continue;const d=dist(t,c,nd[t]);if(d<nd[t]){nd[t]=d;nnf[t]=c}}
+        let r=RW*2;const bx=nnf[t]%w,by=(nnf[t]/w)|0;
+        while(r>=1){const cx=Math.round(bx+(rnd()*2-1)*r),cy=Math.round(by+(rnd()*2-1)*r);if(cx>=0&&cy>=0&&cx<w&&cy<h){const c=cy*w+cx;if(ok(c)){const d=dist(t,c,nd[t]);if(d<nd[t]){nd[t]=d;nnf[t]=c}}}r*=.5}}
+      const acc=new Float32Array(n*3),wt=new Float32Array(n),srt=T.map(t=>nd[t]).sort((p,q)=>p-q),sg2=Math.max(50,srt[Math.floor(srt.length*.75)]||50);
+      for(const t of T){const tx=t%w,ty=(t/w)|0,sidx=nnf[t],sx=sidx%w,sy=(sidx/w)|0,wg=Math.exp(-nd[t]/sg2)+1e-6;
+        for(let dy=-PR;dy<=PR;dy++){const y=ty+dy;if(y<0||y>=h)continue;for(let dx=-PR;dx<=PR;dx++){const x=tx+dx;if(x<0||x>=w)continue;const q=y*w+x;if(!m[q])continue;
+          const b=((sy+dy)*w+sx+dx)*3;acc[q*3]+=img[b]*wg;acc[q*3+1]+=img[b+1]*wg;acc[q*3+2]+=img[b+2]*wg;wt[q]+=wg}}}
+      for(let q=0;q<n;q++)if(m[q]&&wt[q]>0){img[q*3]=acc[q*3]/wt[q];img[q*3+1]=acc[q*3+1]/wt[q];img[q*3+2]=acc[q*3+2]/wt[q]}
+      for(const t of T)nd[t]=dist(t,nnf[t],1e18)}
+    if(L===0){const src=Float32Array.from(img);for(let q=0;q<n;q++)if(m[q]&&nnf[q]>=0){const b=nnf[q]*3;img[q*3]=src[b];img[q*3+1]=src[b+1];img[q*3+2]=src[b+2]}} // finest level: copy the best-matching pixel itself (keeps texture crisp)
+    prev={img,w,h,nnf}}
+  const ox=new Float32Array(W0*H0),oy=new Float32Array(W0*H0),has=new Uint8Array(W0*H0);
+  if(prev&&prev.nnf)for(let i=0;i<W0*H0;i++){const sidx=prev.nnf[i];if(sidx>=0&&mask[i]){ox[i]=(sidx%W0)-(i%W0);oy[i]=((sidx/W0)|0)-((i/W0)|0);has[i]=1}}
+  return {img:levels[0].img,ox,oy,has}}
 function inpaint(ctx,W,H,er,grow){ // fill the masked area from its surroundings (push-pull) and add matching grain
   const ew=er.w,eh=er.h,ea=er.a;let x0=ew,y0=eh,x1=-1,y1=-1;
   for(let y=0;y<eh;y++)for(let x=0;x<ew;x++)if(ea[y*ew+x]>20){if(x<x0)x0=x;if(x>x1)x1=x;if(y<y0)y0=y;if(y>y1)y1=y}
   if(x1<0)return;
-  const mx=Math.round(Math.max(x1-x0,y1-y0)*.35+ew*.03);x0=Math.max(0,x0-mx);y0=Math.max(0,y0-mx);x1=Math.min(ew-1,x1+mx);y1=Math.min(eh-1,y1+mx);
+  const mx=Math.round(Math.max(x1-x0,y1-y0)*1.2+ew*.03);x0=Math.max(0,x0-mx);y0=Math.max(0,y0-mx);x1=Math.min(ew-1,x1+mx);y1=Math.min(eh-1,y1+mx);
   const fx=W/ew,fy=H/eh,X0=Math.floor(x0*fx),Y0=Math.floor(y0*fy),X1=Math.min(W,Math.ceil((x1+1)*fx)),Y1=Math.min(H,Math.ceil((y1+1)*fy));
   const CW=X1-X0,CH=Y1-Y0,k=Math.min(1,900/Math.max(CW,CH)),ww=Math.max(2,Math.round(CW*k)),wh=Math.max(2,Math.round(CH*k));
   const wc=new OffscreenCanvas(ww,wh),wx=wc.getContext('2d',{willReadFrequently:true});wx.imageSmoothingQuality='high';wx.drawImage(ctx.canvas,X0,Y0,CW,CH,0,0,ww,wh);
@@ -558,14 +602,25 @@ function inpaint(ctx,W,H,er,grow){ // fill the masked area from its surroundings
         L.kn[i]=1}}}
   const f0=lv[0].c,fdat=new ImageData(ww,wh);for(let i=0;i<ww*wh;i++){fdat.data[i*4]=f0[i*3];fdat.data[i*4+1]=f0[i*3+1];fdat.data[i*4+2]=f0[i*3+2];fdat.data[i*4+3]=255}
   wx.putImageData(fdat,0,0);
+  // texture: multi-scale PatchMatch fill (copies real paving/foliage/wall texture from around the hole instead of a smooth smear)
+  const syn=patchFill(f0,m,ww,wh),OX=syn.ox,OY=syn.oy,HAS=syn.has;
+  { // keep the smooth, correct local tone from the push-pull fill and borrow only the texture (detail) from the matched patches
+    const sgl=Math.max(2,Math.max(ww,wh)*.005),LO=[0,1,2].map(ch=>{const a=new Float32Array(ww*wh);for(let i=0;i<ww*wh;i++)a[i]=wd[i*4+ch];return gauss(a,ww,wh,sgl)});
+    for(let i=0;i<ww*wh;i++){if(!HAS[i])continue;const sidx=i+OY[i]*ww+OX[i];for(let ch=0;ch<3;ch++){fdat.data[i*4+ch]=f0[i*3+ch]+(wd[sidx*4+ch]-LO[ch][sidx])}}}
+  wx.putImageData(fdat,0,0);
+  const LW=[0,1,2].map(ch=>{const a=new Float32Array(ww*wh);for(let i=0;i<ww*wh;i++)a[i]=wd[i*4+ch];return a});
   const fc=new OffscreenCanvas(CW,CH),fcx=fc.getContext('2d',{willReadFrequently:true});fcx.imageSmoothingQuality='high';fcx.drawImage(wc,0,0,CW,CH);
   const F=fcx.getImageData(0,0,CW,CH).data,mf=gauss(Float32Array.from(m,v=>v/255),ww,wh,Math.max(1,Math.max(ww,wh)*.004));
   const O=ctx.getImageData(X0,Y0,CW,CH),od=O.data;
   let s2=0,sn=0;for(let t=0;t<5000&&CW>2&&CH>2;t++){const x=1+Math.floor(Math.random()*(CW-2)),y=1+Math.floor(Math.random()*(CH-2));
     if(m[Math.min(wh-1,Math.floor(y*k))*ww+Math.min(ww-1,Math.floor(x*k))])continue;const i=(y*CW+x)*4+1,d=od[i]-(od[i-4]+od[i+4]+od[i-CW*4]+od[i+CW*4])/4;s2+=d*d;sn++}
   const gs=sn?Math.min(5,Math.sqrt(s2/sn)*.45):0;let seed=987654321;const rnd=()=>{seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return (seed>>>0)/4294967296};
+  const od0=Uint8ClampedArray.from(od);
   for(let y=0;y<CH;y++){const wy=Math.max(0,Math.min(wh-1.001,(y+.5)*k-.5));for(let x=0;x<CW;x++){const a=bilinear(mf,ww,wh,(x+.5)*k-.5,wy);if(a<=.003)continue;
-    const i=(y*CW+x)*4,n=(rnd()+rnd()+rnd()-1.5)*gs;for(let ch=0;ch<3;ch++)od[i+ch]=od[i+ch]*(1-a)+(F[i+ch]+n)*a}}
+    const i=(y*CW+x)*4,j=Math.min(wh-1,Math.floor(y*k))*ww+Math.min(ww-1,Math.floor(x*k));
+    if(HAS[j]){const sx=Math.min(CW-1,Math.max(0,Math.round(x+OX[j]/k))),sy=Math.min(CH-1,Math.max(0,Math.round(y+OY[j]/k))),si=(sy*CW+sx)*4,lx=Math.max(0,Math.min(ww-1.001,(sx+.5)*k-.5)),ly=Math.max(0,Math.min(wh-1.001,(sy+.5)*k-.5));
+      for(let ch=0;ch<3;ch++){const hf=od0[si+ch]-bilinear(LW[ch],ww,wh,lx,ly);od[i+ch]=od0[i+ch]*(1-a)+(F[i+ch]+hf)*a}}
+    else{const n=(rnd()+rnd()+rnd()-1.5)*gs;for(let ch=0;ch<3;ch++)od[i+ch]=od[i+ch]*(1-a)+(F[i+ch]+n)*a}}}
   ctx.putImageData(O,X0,Y0)}
 function toneLUT(e,s){const g=Math.pow(2,-e*.9),L=new Float32Array(256);for(let i=0;i<256;i++){const l=Math.max(i,1)/255;let n=Math.pow(l,g);n=n+s*1.1*n*(1-n)*(1-n);L[i]=Math.min(4,n/l)}return L}
 function toneLayers(ctx,W,H,seg,er,p){ // subject / background brightness + shadow lift, using the AI person mask
@@ -652,7 +707,7 @@ function bgBlur(ctx,W,H,seg0,amt,faces){ // lens-like background blur: masked (s
   const msd=gauss(ms,sw,sh,1.2),wb=new Float32Array(n);for(let i=0;i<n;i++){const t=Math.min(1,Math.max(0,(msd[i]-.1)/.25));wb[i]=1-t}
   const sig=Math.max(1,amt*Math.max(sw,sh)*.016),den=gauss(wb,sw,sh,sig),sig2=Math.max(.8,sig*.3),den2=gauss(wb,sw,sh,sig2);
   const near=gauss(ms,sw,sh,Math.max(2,Math.max(sw,sh)*.035)),NW=new Float32Array(n);
-  for(let y=0;y<sh;y++){const gnd=yb&&y>yb-sh*.015?Math.min(.85,(y-(yb-sh*.015))/(sh*.02)):0; // the ground the subject sits/stands on stays near focus
+  for(let y=0;y<sh;y++){const dyb=y-(yb-sh*.015),gnd=yb&&dyb>0?Math.min(.85,dyb/(sh*.02))*Math.max(0,1-Math.max(0,dyb-sh*.04)/(sh*.12)):0; // the ground the subject sits/stands on stays near focus
     for(let x=0;x<sw;x++){const i=y*sw+x;NW[i]=Math.max(gnd,Math.min(1,near[i]*.9))}}
   const LIN=new Float32Array(256);for(let i=0;i<256;i++)LIN[i]=Math.pow(i/255,2.2);
   const B=[0,1,2].map(c=>{const a=new Float32Array(n);for(let i=0;i<n;i++)a[i]=LIN[sd[i*4+c]]*wb[i];const g=gauss(a,sw,sh,sig),g2=gauss(a,sw,sh,sig2);const o=new Float32Array(n);
