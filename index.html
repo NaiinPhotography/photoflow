@@ -176,6 +176,7 @@ body{background:#000}.app{background:var(--bg)}
 .subtabs button.on{color:#fff;background:#2e2e34}
 .pane{height:30dvh}
 .gridview{position:absolute;inset:0;z-index:4;background:var(--bg);overflow-y:auto;padding:10px 12px}
+.wherebox{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.6);display:grid;place-items:center;padding:16px}.wb-card{background:var(--surface);color:var(--ink);border-radius:14px;padding:18px;max-width:420px;width:100%;line-height:1.55}.wb-card ol{padding-left:20px;margin:8px 0}.wb-card p{margin:8px 0}.wb-card .tools{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
 .gv-tools{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px}#gvFilter{margin-bottom:8px}#cullHint{margin:0 0 8px}
 .gv .hrt{position:absolute;right:2px;top:2px;width:34px;height:34px;display:grid;place-items:center;font-size:20px;color:rgba(255,255,255,.85);text-shadow:0 1px 3px #000}.gv .hrt.on{color:#ff4d6d}
 .gv .aib{position:absolute;left:4px;top:4px;font-size:10px;background:#d4a64a;color:#231c27;border-radius:8px;padding:0 6px;line-height:16px;font-weight:700}
@@ -390,6 +391,15 @@ body{background:#000}.app{background:var(--bg)}
 </div>
 <div class="tools" id="toolRow" hidden><button id="btnErase" type="button"></button><button id="btnCrop" type="button"></button></div>
 
+<div class="wherebox" id="whereBox" hidden><div class="wb-card">
+  <b>บันทึก <span id="whereN"></span> ภาพแล้ว ✓</b>
+  <p>ภาพอยู่ในโฟลเดอร์ <b>Download (ดาวน์โหลด)</b> ของเครื่อง ชื่อไฟล์ลงท้ายด้วย <b>_PF.jpg</b> เช่น <span id="whereName"></span></p>
+  <ol><li>แอป <b>คลังภาพ / Photos</b> → แท็บอัลบั้ม → อัลบั้ม <b>Download</b> หรือ <b>ดาวน์โหลด</b></li>
+  <li>หรือแอป <b>ไฟล์ของฉัน / File Manager</b> → <b>ดาวน์โหลด</b> (ค้นหาคำว่า <b>_PF</b> ได้)</li>
+  <li>หรือใน Chrome: ⋮ → <b>ดาวน์โหลด</b></li></ol>
+  <p class="hint">อยากให้ภาพไปอยู่ในคลังภาพ Google Photos หรือ Drive โดยตรง กด “แชร์ไปที่แอปอื่น” แล้วเลือกแอปปลายทาง</p>
+  <div class="tools"><button class="btn primary" id="whereShare" type="button">แชร์ไปที่แอปอื่น</button><button class="btn" id="whereClose" type="button">เข้าใจแล้ว</button></div>
+</div></div>
 <script src="face-api.js"></script>
 <script src="jszip.min.js"></script>
 <script src="facemodel.js"></script>
@@ -1351,7 +1361,7 @@ const _preview=preview;preview=function(){trackHist();return _preview.apply(this
     d={sl,r,x:e.clientX,y:e.clientY,v:+r.value,on:false,id:e.pointerId,w:sl.getBoundingClientRect().width}});
   pane.addEventListener('pointermove',e=>{if(!d||e.pointerId!==d.id)return;const dx=e.clientX-d.x,dy=e.clientY-d.y;
     if(!d.on){if(Math.abs(dx)>10&&Math.abs(dx)>Math.abs(dy)*1.3){d.on=true;d.x=e.clientX;d.sl.classList.add('drag');try{d.sl.setPointerCapture(e.pointerId)}catch(_){}}else if(Math.abs(dy)>10)d=null;return}
-    e.preventDefault();const span=(+d.r.max)-(+d.r.min),sens=span/(d.w*2);setV(d.r,d.v+(e.clientX-d.x)*sens)});
+    e.preventDefault();const span=(+d.r.max)-(+d.r.min),sens=span/(d.w*1.3);setV(d.r,d.v+(e.clientX-d.x)*sens)});
   const end=e=>{if(!d||(e&&e.pointerId!==d.id))return;if(d.on){d.sl.classList.remove('drag');d.r.dispatchEvent(new Event('change',{bubbles:true}))}d=null};
   pane.addEventListener('pointerup',end);pane.addEventListener('pointercancel',end);})();
 /* --- sharing & saving --- */
@@ -1452,8 +1462,10 @@ $('btnSave').onclick=async()=>{
 $('btnDl').onclick=async()=>{
   const d=doneItems();msg(`กำลังบันทึก ${d.length} ภาพ…`);
   for(const it of d){dlBlob(it.out,outName(it));await new Promise(r=>setTimeout(r,450))}
-  msg(`บันทึก ${d.length} ภาพลงโฟลเดอร์ Download แล้ว ✓ (ถ้าเครื่องถามเรื่องดาวน์โหลดหลายไฟล์ ให้กด “อนุญาต”)`);
+  msg(`บันทึก ${d.length} ภาพลงโฟลเดอร์ Download แล้ว ✓`);$('whereN').textContent=d.length;$('whereName').textContent=outName(d[0]);$('whereBox').hidden=false;
 };
+$('whereClose').onclick=()=>{$('whereBox').hidden=true};
+$('whereShare').onclick=()=>{$('whereBox').hidden=true;$('btnSave').click()};
 $('btnZip').onclick=async()=>{
   const d=doneItems();msg('กำลังรวมไฟล์ ZIP…');
   const z=new JSZip();d.forEach(it=>z.file(outName(it),it.out));
