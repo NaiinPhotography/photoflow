@@ -126,34 +126,84 @@ select{border:1px solid var(--line);background:var(--bg);border-radius:10px;padd
 .curvebox{margin-top:10px;width:100%;max-width:360px}.curvebox canvas{width:100%;aspect-ratio:1;display:block;touch-action:none;border-radius:8px;background:var(--bg)}
 textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:10px;padding:10px;margin-top:8px}
 #tplFields input{border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:10px 12px;min-height:44px}
+
+/* ===== LR-style editor layout: photo fixed on top, one tool panel, tool bar at the bottom ===== */
+html{padding-top:0!important;height:100%}
+body{height:100%;overflow:hidden;padding:0!important}
+.app{height:100dvh;display:flex;flex-direction:column;max-width:1000px;margin:0 auto;padding-top:env(safe-area-inset-top,0px)}
+.top{display:flex;align-items:center;gap:8px;padding:8px max(12px,env(safe-area-inset-right,0px)) 4px max(12px,env(safe-area-inset-left,0px))}
+.ibtn{flex:0 0 40px;height:40px;border-radius:10px;background:var(--accent);color:#fff;display:grid;place-items:center;font-size:24px;position:relative;cursor:pointer}
+.ibtn input{position:absolute;width:1px;height:1px;opacity:0}
+.top .tray{flex:1;min-width:0;padding:0;gap:6px}
+.top .thumb{flex:0 0 38px;height:50px;border-radius:6px;border-width:2px}
+.top .thumb .st{min-width:15px;height:15px;line-height:15px;font-size:9px;border-radius:8px}
+.topacts{display:flex;gap:6px;flex:0 0 auto}
+.btn.sm{min-height:36px;padding:6px 10px;font-size:14px}
+.msgbar{padding:0 12px 4px;display:grid;gap:3px}.msgbar .prog{height:3px}.msgbar .msg{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:0}
+.view{flex:1 1 auto;min-height:120px;display:flex;align-items:center;justify-content:center;padding:0 12px 4px;position:relative;overflow:hidden}
+.view .stage{flex:0 0 auto;aspect-ratio:auto;max-width:none}
+.viewbar{position:absolute;left:20px;right:20px;bottom:10px;display:flex;justify-content:space-between;align-items:center;gap:8px;pointer-events:none}
+.viewbar>*{pointer-events:auto}.viewbar .hint{background:var(--veil);color:#fff;padding:2px 8px;border-radius:12px;font-size:11px}
+.viewbar .seg{background:var(--surface)}
+.seg.mini button{min-height:30px;padding:4px 10px;font-size:13px}
+.pane{flex:0 0 auto;height:36dvh;overflow-y:auto;background:var(--surface);border-top:1px solid var(--line);padding:12px max(14px,env(safe-area-inset-right,0px)) 16px max(14px,env(safe-area-inset-left,0px));overscroll-behavior:contain}
+.pn{display:none}.pn.on{display:grid;gap:12px}
+#adjHead{margin-bottom:10px}#adjHead .hint{margin:0}
+.pn[data-pane="adj"] .adjsec{border-top:0;padding-top:0}.pn[data-pane="adj"] .adjsec summary{display:none}
+.pn .panel{padding:0;border:0}
+.tabs{flex:0 0 auto;display:flex;overflow-x:auto;gap:2px;background:var(--surface);border-top:1px solid var(--line);padding:6px 6px calc(6px + env(safe-area-inset-bottom,0px));scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:0 0 auto;border:0;background:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:3px;font:500 11px var(--f-body);min-width:62px;padding:6px 6px;border-radius:10px;cursor:pointer}
+.tabs button i{font-style:normal;font-size:19px;line-height:1}
+.tabs button.on{color:var(--accent);background:var(--accent-soft)}
+#toolRow{display:none!important}
+:root,:root[data-theme="light"],:root[data-theme="dark"]{--bg:#0d0d0f;--surface:#1b1b1e;--ink:#f1f1f3;--muted:#9b9ba3;--line:#2c2c31;--accent:#3d7cf5;--accent-soft:#1b2c4d;--veil:rgba(0,0,0,.6);color-scheme:dark}
+body{background:#000}.app{background:var(--bg)}
+.view{background:#000}
+.ibtn svg,.tabs svg,.act svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.ibtn{border:0;color:#fff}.ibtn.ghost{background:transparent;color:var(--ink);position:relative}.ibtn:disabled{opacity:.35}
+.ibtn .cnt{position:absolute;right:0;top:0;font-size:10px;background:var(--accent);color:#fff;border-radius:8px;padding:0 4px;line-height:15px}
+.top .tray{display:none}
+.top{gap:4px}.top #btnRun{margin-left:auto}
+.tabs{justify-content:flex-start}.tabs button{min-width:70px}.tabs button span{white-space:nowrap}
+.tabs button.on{color:#fff;background:var(--accent)}
+.subtabs{flex:0 0 auto;display:flex;gap:4px;overflow-x:auto;padding:6px 10px;background:var(--surface);border-top:1px solid var(--line);scrollbar-width:none}
+.subtabs::-webkit-scrollbar{display:none}
+.subtabs button{flex:0 0 auto;border:0;background:none;color:var(--muted);font:500 13px var(--f-body);padding:6px 12px;border-radius:16px;cursor:pointer}
+.subtabs button.on{color:#fff;background:#2e2e34}
+.pane{height:30dvh}
+.gridview{position:absolute;inset:0;z-index:4;background:var(--bg);overflow-y:auto;padding:10px 12px}
+.gv-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.gv{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:4px}
+.gv button{position:relative;border:0;padding:0;aspect-ratio:2/3;background:#222;cursor:pointer;border-radius:4px;overflow:hidden;outline:2px solid transparent}
+.gv button.on{outline-color:var(--accent)}.gv img{width:100%;height:100%;object-fit:cover;display:block}
+.gv .st{position:absolute;right:4px;bottom:4px;font-size:10px;background:var(--veil);color:#fff;border-radius:8px;padding:0 5px;line-height:16px}.gv .st.done{background:var(--ok)}
+.actgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.act{display:flex;align-items:center;gap:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:12px;padding:12px;font:500 14px var(--f-body);cursor:pointer;text-align:left}
+.act svg{flex:0 0 22px;color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn{background:#26262b;border-color:#34343a;color:var(--ink)}
+.morepanel{position:absolute;right:10px;top:52px;z-index:6;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:6px;display:grid;min-width:200px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+.morepanel button{border:0;background:none;color:var(--ink);text-align:left;padding:10px 12px;border-radius:8px;font:14px var(--f-body);cursor:pointer}.morepanel button:hover{background:#2a2a2f}
+@media (min-width:900px){.app{display:grid;grid-template-columns:1fr 360px;grid-template-rows:auto auto 1fr auto}.top,.msgbar{grid-column:1/3}.view{grid-column:1;grid-row:3}.pane{grid-column:2;grid-row:3;height:auto;border-top:0;border-left:1px solid var(--line)}.tabs{grid-column:1/3;justify-content:center}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head><body>
 
-<div class="wrap">
-  <header>
-    <h1>Photo<em>Flow</em></h1>
-    <span class="sub">เกลาผิว · ลายน้ำ · บันทึก</span>
-  </header>
-
-  <section class="panel">
-    <h2>ภาพที่แต่งจาก Lightroom</h2>
-    <div class="picks">
-      <label class="pick" for="files">
-        <input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple>
-        <span>＋ เลือกภาพ</span>
-      </label>
-      <label class="pick" for="folder" id="folderBtn">
-        <input id="folder" type="file" webkitdirectory multiple>
-        <span>📁 เลือกทั้งโฟลเดอร์</span>
-      </label>
-    </div>
-    <p class="hint" style="margin-top:8px">เลือกภาพ: แตะค้างที่ภาพแรก แล้วแตะภาพอื่นเพื่อเลือกหลายภาพ · เลือกทั้งโฟลเดอร์: เปิดโฟลเดอร์ที่ export จาก Lightroom แล้วกด “ใช้โฟลเดอร์นี้”</p>
-    <div class="row" id="clearRow" hidden style="margin-top:8px"><button class="btn" id="btnClear" type="button">ล้างภาพทั้งหมด</button></div>
+<div class="app" id="app">
+  <header class="top">
+    <label class="ibtn" for="files" title="เพิ่มภาพ"><input id="files" type="file" accept="image/jpeg,image/png,image/webp" multiple><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></label>
+    <button class="ibtn ghost" id="btnGrid" type="button" title="คลังภาพ"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span class="cnt" id="gridCnt"></span></button>
     <div class="tray" id="tray"></div>
-  </section>
-
-  <section>
+    <button class="ibtn ghost" id="btnUndoAll" type="button" title="ย้อนกลับ" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7L4 12l5 5M4 12h11a5 5 0 0 1 0 10h-2"/></svg></button>
+    <button class="btn primary sm" id="btnRun" type="button" disabled>ทำทุกภาพ</button>
+    <span class="topacts"><button class="ibtn ghost" id="btnSave" type="button" title="แชร์" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a3 3 0 1 0-3-3M6 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM18 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM8.6 13.5l6.8 4M15.4 6.5l-6.8 4"/></svg></button></span>
+    <button class="ibtn ghost" id="btnMore" type="button" title="บันทึก / ไฟล์"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg></button>
+  </header>
+  <div class="morepanel" id="morePanel" hidden><button type="button" data-m="dl">บันทึกภาพลงเครื่อง</button><button type="button" data-m="zip">รวมเป็น ZIP</button><button type="button" data-m="file">ไฟล์งานแต่ง / การตั้งค่า / เพิ่มภาพ</button></div>
+  <div class="msgbar"><div class="prog"><i id="progBar"></i></div><div class="msg" id="msg" aria-live="polite">แตะ ＋ เพื่อเลือกภาพ</div></div>
+  <main class="view" id="view">
+    <div class="gridview" id="gridView" hidden><div class="gv-head"><b>คลังภาพในงานนี้</b><span class="hint" id="gvInfo"></span></div><div class="gv" id="gv"></div></div>
     <div class="stage" id="stage">
       <canvas id="cvBefore"></canvas>
       <canvas id="cvAfter" class="after"></canvas>
@@ -162,38 +212,57 @@ textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);bac
       <div class="cropbox" id="cropBox" hidden><i data-h="tl"></i><i data-h="tr"></i><i data-h="bl"></i><i data-h="br"></i></div>
       <div class="divider" id="divider" hidden></div>
       <span class="lab l" id="labL" hidden>ก่อน</span><span class="lab r" id="labR" hidden>หลัง</span>
-      <div class="empty" id="empty"><b>ยังไม่มีภาพ</b><span>เลือกภาพที่ export จาก Lightroom แล้วจะเห็นภาพก่อน/หลังตรงนี้<br>เลื่อนเส้นกลางภาพเพื่อเทียบ</span></div>
+      <div class="empty" id="empty"><b>ยังไม่มีภาพ</b><span>แตะ ＋ มุมซ้ายบนเพื่อเลือกภาพ<br>เลื่อนเส้นกลางภาพเพื่อเทียบก่อน/หลัง</span></div>
       <span class="busy" id="busy" hidden>กำลังประมวลผล…</span>
     </div>
-    <div class="stagebar">
-      <div class="seg" role="group" aria-label="มุมมอง">
-        <button id="vFull" class="on" type="button">ทั้งภาพ</button>
-        <button id="vFace" type="button">ซูมหน้า</button>
-      </div>
+    <div class="viewbar">
+      <div class="seg mini" role="group" aria-label="มุมมอง"><button id="vFull" class="on" type="button">ทั้งภาพ</button><button id="vFace" type="button">ซูมหน้า</button></div>
       <span class="hint" id="faceInfo"></span>
     </div>
-    <div class="stagebar" id="perRow" hidden>
-      <span class="hint">ลายน้ำภาพนี้</span>
-      <div class="seg" role="group" aria-label="สีลายน้ำเฉพาะภาพนี้" id="wmPer">
-        <button type="button" data-c="">ตามค่าหลัก</button>
-        <button type="button" data-c="#ffffff">ขาว</button>
-        <button type="button" data-c="#000000">ดำ</button>
+  </main>
+  <section class="pane" id="pane">
+    <div class="ctl" id="adjHead">
+      <div class="row" style="justify-content:space-between">
+        <div class="seg mini" role="group" aria-label="ใช้กับ"><button id="scAll" type="button" class="on">ทุกภาพ</button><button id="scThis" type="button">เฉพาะภาพนี้</button></div>
+        <div class="row" style="gap:6px"><button class="btn sm" id="adjAuto" type="button">อัตโนมัติ</button><button class="btn sm" id="adjReset" type="button">รีเซ็ต</button></div>
       </div>
+      <p class="hint" id="scHint"></p>
     </div>
-    <div class="tools" id="toolRow" hidden style="margin-top:10px">
-      <button class="btn" id="btnErase" type="button">ลบคน / สิ่งรบกวน</button>
-      <button class="btn" id="btnCrop" type="button">ตัด / หมุน / ขยายฉาก</button>
-      <button class="btn" id="btnMask" type="button">ดูขอบตัวแบบ</button>
+    <div class="pn ctl" data-pane="auto">
+      <b>การดำเนินการ</b>
+      <div class="actgrid">
+        <button class="act" type="button" id="qaAuto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L15 9M14 4v2M19 9h2M17.5 5.5l1.5-1.5M10 4l.7 1.5L12 6l-1.3.5L10 8l-.7-1.5L8 6l1.3-.5z"/></svg><span>ปรับแสงอัตโนมัติ</span></button>
+        <button class="act" type="button" id="qaPeople"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21h10M3.5 14.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 18H8z"/></svg><span>ลบผู้คนส่วนเกิน</span></button>
+        <button class="act" type="button" id="qaStraight"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2v16h16M2 6h16v16"/></svg><span>แก้ภาพเอียง</span></button>
+        <button class="act" type="button" id="qaSubject"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7a5 5 0 1 0 0 10"/></svg><span>ตัวแบบ / พื้นหลัง</span></button>
+      </div>
+      <p class="hint">กดครั้งเดียว แอปทำให้อัตโนมัติ แล้วปรับต่อในเครื่องมือนั้นได้</p>
     </div>
-    <div class="panel ctl" id="eraseBar" hidden style="margin-top:10px">
+    <div class="pn ctl" data-pane="presets"><div><p class="sub-h" style="margin:6px 0 8px">พรีเซ็ต</p><div class="chips" id="presets"></div>
+      <div class="row" style="margin-top:8px"><input type="text" id="presetName" placeholder="ชื่อ เช่น ชุดไทยในวัด" aria-label="ชื่อพรีเซ็ต"><button class="btn" id="presetSave" type="button">บันทึกค่าปัจจุบัน</button></div></div><p class="hint">แตะพรีเซ็ตเพื่อใช้ · บันทึกสไตล์ของคุณเองได้</p></div>
+    <div class="pn" data-pane="adj"><div id="adjBody"></div><p class="hint">แตะสองครั้งที่แถบเลื่อนเพื่อคืนค่าเป็น 0</p></div>
+    <div class="pn ctl" data-pane="skin"><div class="sw"><span>เกลาผิว / ความคม</span><input type="checkbox" id="retouchOn"></div>
+    <div class="sl"><label for="smooth">ผิวเนียน <output id="smoothV"></output></label><input type="range" id="smooth" min="0" max="100"></div>
+    <div class="sl"><label for="sharpen">ความคมชัด <output id="sharpenV"></output></label><input type="range" id="sharpen" min="0" max="100"></div>
+    <div class="sl"><label for="glow">ผิวสว่างนวล <output id="glowV"></output></label><input type="range" id="glow" min="0" max="100"></div>
+    <p class="hint">เกลาเฉพาะผิว ลายผ้า เครื่องประดับ ตา และผม จะไม่ถูกทำให้เบลอ</p></div>
+    <div class="pn ctl" data-pane="layers"><div class="sw"><span>แยกตัวแบบ / พื้นหลัง</span><input type="checkbox" id="layersOn"></div>
+    <p class="hint" id="segState">AI แยกตัวแบบออกจากฉาก แล้วปรับแสงแยกกัน · ครั้งแรกดาวน์โหลดประมาณ 26 MB (ครั้งเดียว)</p>
+    <p class="sub-h">ตัวแบบ</p>
+    <div class="sl"><label for="subjExp">ความสว่าง <output id="subjExpV"></output></label><input type="range" id="subjExp" min="-100" max="100"></div>
+    <div class="sl"><label for="subjSh">เปิดเงา <output id="subjShV"></output></label><input type="range" id="subjSh" min="0" max="100"></div>
+    <p class="sub-h">พื้นหลัง</p>
+    <div class="sl"><label for="bgExp">ความสว่าง <output id="bgExpV"></output></label><input type="range" id="bgExp" min="-100" max="100"></div>
+    <div class="sl"><label for="bgSh">เปิดเงา <output id="bgShV"></output></label><input type="range" id="bgSh" min="0" max="100"></div><button class="btn" id="btnMask" type="button">ดูขอบตัวแบบ</button></div>
+    <div class="pn" data-pane="erase"><div class="ctl" id="eraseBar">
       <b>ลบคน / สิ่งรบกวน</b>
       <p class="hint">ใช้นิ้วระบายทับคนหรือสิ่งที่ต้องการลบ ระบายเลยขอบออกมาเล็กน้อย พื้นที่สีแดงจะถูกเติมด้วยพื้นหลังรอบ ๆ</p>
       <button class="btn gold" id="btnAuto" type="button" hidden>ลบคนอื่นที่ตรวจพบ</button><span class="hint" id="autoInfo"></span>
       <div class="sl"><label for="brush">ขนาดแปรง <output id="brushV">6</output></label><input type="range" id="brush" min="2" max="20" value="6"></div>
       <div class="tools"><button class="btn" id="btnUndo" type="button">↶ ย้อนกลับ</button><button class="btn" id="btnEraseClear" type="button">ล้างทั้งหมด</button></div>
       <button class="btn primary" id="btnEraseDone" type="button">เสร็จ · ดูผลลัพธ์</button>
-    </div>
-    <div class="panel ctl" id="cropBar" hidden style="margin-top:10px">
+    </div></div>
+    <div class="pn" data-pane="crop"><div class="ctl" id="cropBar">
       <p class="sub-h">อัตราส่วน</p><div class="chips" id="aspects"></div>
       <div class="sl"><label for="ang">หมุนภาพ / แก้เอียง <output id="angV"></output></label><input type="range" id="ang" min="-45" max="45" step="0.1"></div>
       <div class="tools"><button class="btn" id="btnAutoAng" type="button">อัตโนมัติ</button><button class="btn" id="btnRot" type="button">หมุน 90°</button><button class="btn" id="btnFlip" type="button">พลิกซ้าย-ขวา</button></div>
@@ -202,41 +271,11 @@ textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);bac
       <label class="sw" for="expand"><span>ขยายพื้นหลัง (ลากกรอบออกนอกภาพได้)</span><input type="checkbox" id="expand"></label>
       <p class="hint">ส่วนที่ขยายจะเติมจากสีและเนื้อภาพรอบขอบ เหมาะกับฉากหลังเบลอ ขยายได้ไม่เกินประมาณ 30% ต่อด้าน</p>
       <div class="tools"><button class="btn" id="btnCropReset" type="button">รีเซ็ต</button><button class="btn" id="btnCropCancel" type="button">ยกเลิก</button><button class="btn primary" id="btnCropDone" type="button">เสร็จ</button></div>
-    </div>
-  </section>
-
-  <section class="panel ctl">
-    <div class="row" style="justify-content:space-between"><b style="font-size:16px">ปรับแสงและสี</b>
-      <div class="tools" style="flex:0 0 auto"><button class="btn" id="adjAuto" type="button">อัตโนมัติ</button><button class="btn" id="adjReset" type="button">รีเซ็ต</button></div></div>
-    <div class="seg" role="group" aria-label="ใช้กับ"><button id="scAll" type="button" class="on">ทุกภาพ</button><button id="scThis" type="button">เฉพาะภาพนี้</button></div>
-    <p class="hint" id="scHint"></p>
-    <div id="adjBody"></div>
-    <div class="adjsec"><p class="sub-h" style="margin:6px 0 8px">พรีเซ็ต</p><div class="chips" id="presets"></div>
-      <div class="row" style="margin-top:8px"><input type="text" id="presetName" placeholder="ชื่อ เช่น ชุดไทยในวัด" aria-label="ชื่อพรีเซ็ต"><button class="btn" id="presetSave" type="button">บันทึกค่าปัจจุบัน</button></div></div>
-    <p class="hint">แตะสองครั้งที่แถบเลื่อนเพื่อคืนค่าเป็น 0</p>
-  </section>
-
-  <section class="panel ctl">
-    <div class="sw"><span>แยกตัวแบบ / พื้นหลัง</span><input type="checkbox" id="layersOn"></div>
-    <p class="hint" id="segState">AI แยกตัวแบบออกจากฉาก แล้วปรับแสงแยกกัน · ครั้งแรกดาวน์โหลดประมาณ 26 MB (ครั้งเดียว)</p>
-    <p class="sub-h">ตัวแบบ</p>
-    <div class="sl"><label for="subjExp">ความสว่าง <output id="subjExpV"></output></label><input type="range" id="subjExp" min="-100" max="100"></div>
-    <div class="sl"><label for="subjSh">เปิดเงา <output id="subjShV"></output></label><input type="range" id="subjSh" min="0" max="100"></div>
-    <p class="sub-h">พื้นหลัง</p>
-    <div class="sl"><label for="bgExp">ความสว่าง <output id="bgExpV"></output></label><input type="range" id="bgExp" min="-100" max="100"></div>
-    <div class="sl"><label for="bgSh">เปิดเงา <output id="bgShV"></output></label><input type="range" id="bgSh" min="0" max="100"></div>
-  </section>
-
-  <section class="panel ctl">
-    <div class="sw"><span>เกลาผิว / ความคม</span><input type="checkbox" id="retouchOn"></div>
-    <div class="sl"><label for="smooth">ผิวเนียน <output id="smoothV"></output></label><input type="range" id="smooth" min="0" max="100"></div>
-    <div class="sl"><label for="sharpen">ความคมชัด <output id="sharpenV"></output></label><input type="range" id="sharpen" min="0" max="100"></div>
-    <div class="sl"><label for="glow">ผิวสว่างนวล <output id="glowV"></output></label><input type="range" id="glow" min="0" max="100"></div>
-    <p class="hint">เกลาเฉพาะผิว ลายผ้า เครื่องประดับ ตา และผม จะไม่ถูกทำให้เบลอ</p>
-  </section>
-
-  <section class="panel ctl">
-    <div class="sw"><span>ลายน้ำ</span><input type="checkbox" id="wmOn"></div>
+    </div></div>
+    <div class="pn ctl" data-pane="wm">
+      <div class="stagebar" id="perRow" hidden style="margin:0"><span class="hint">ลายน้ำภาพนี้</span>
+        <div class="seg mini" role="group" aria-label="สีลายน้ำเฉพาะภาพนี้" id="wmPer"><button type="button" data-c="">ตามค่าหลัก</button><button type="button" data-c="#ffffff">ขาว</button><button type="button" data-c="#000000">ดำ</button></div></div>
+      <div class="sw"><span>ลายน้ำ</span><input type="checkbox" id="wmOn"></div>
     <div class="seg" role="group" aria-label="ชนิดลายน้ำ">
       <button id="mText" type="button" class="on">ข้อความ</button>
       <button id="mLogo" type="button">ลายเซ็น / โลโก้</button>
@@ -284,10 +323,8 @@ textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);bac
           <option value="2048">2048 px (Facebook)</option>
         </select></div>
     </div>
-  </section>
-
-  <section class="panel ctl" id="artPanel">
-    <b style="font-size:16px">สตูดิโอศิลป์ AI</b>
+    </div>
+    <div class="pn ctl" data-pane="art" id="artPanel"><b style="font-size:16px">สตูดิโอศิลป์ AI</b>
     <p class="hint">เลือกแม่แบบ กรอกรายละเอียด แล้วใช้กับ ChatGPT หรือสร้างในแอป</p>
     <div class="chips" id="tplChips"></div>
     <div class="ctl" id="tplFields"></div>
@@ -307,11 +344,16 @@ textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);bac
       <div class="row"><label class="hint" for="oaiModel">โมเดล</label><select id="oaiModel"><option value="gpt-image-2">gpt-image-2 (แนะนำ)</option><option value="gpt-image-1-mini">gpt-image-1-mini (ถูกกว่า)</option></select></div>
       <button class="btn primary" id="oaiGen" type="button">สร้างงานศิลป์จากภาพที่เลือกอยู่</button>
       <p class="hint" id="oaiState"></p>
-    </details>
-  </section>
-
-  <section class="panel ctl">
-    <b style="font-size:16px">แต่งต่อบนเครื่องอื่น</b>
+    </details></div>
+    <div class="pn ctl" data-pane="file">
+      <b>ภาพในงานนี้</b>
+      <div class="tools"><label class="btn" for="files" style="text-align:center">＋ เลือกภาพเพิ่ม</label>
+        <label class="btn" for="folder" id="folderBtn" style="text-align:center"><input id="folder" type="file" webkitdirectory multiple hidden>เลือกทั้งโฟลเดอร์</label>
+        <span id="clearRow" hidden style="display:contents"><button class="btn" id="btnClear" type="button">ล้างภาพทั้งหมด</button></span></div>
+      <b>บันทึกภาพที่ทำเสร็จ</b>
+      <div class="tools"><button class="btn" id="btnDl" type="button" disabled>บันทึกลงเครื่อง</button><button class="btn" id="btnZip" type="button" disabled>รวมเป็น ZIP</button></div>
+      <p class="hint">ปุ่ม <b>แชร์</b> ด้านบน ส่งทุกภาพที่ทำเสร็จไป Line, Facebook หรือ Google Drive ได้ในครั้งเดียว</p>
+      <b style="font-size:16px">แต่งต่อบนเครื่องอื่น</b>
     <p class="hint">เหมือน Lightroom: บันทึก<b>ไฟล์งานแต่ง</b>ไว้ใน Google Drive คู่กับภาพ แล้วเปิดบนมือถือ แท็บเล็ต หรือคอม ระบบจะใส่การแต่งทุกอย่างกลับมาให้ (ตัดภาพ ลบคน ปรับแสงสี ลายน้ำ)</p>
     <div class="tools"><button class="btn gold" id="projSave" type="button">บันทึกงานแต่งชุดนี้</button>
       <label class="btn" for="pfFile" style="text-align:center">เปิดไฟล์งานแต่ง / การตั้งค่า</label>
@@ -319,30 +361,14 @@ textarea{width:100%;font:13px/1.5 var(--f-body);border:1px solid var(--line);bac
     <p class="hint">เปิดบนเครื่องอื่น: กด <b>เปิดไฟล์งานแต่ง</b> แล้ว<b>เลือกภาพชุดเดิม</b> (ก่อนหรือหลังก็ได้) ภาพที่ชื่อตรงกันจะได้การแต่งเดิมทันที</p>
     <div class="tools"><button class="btn" id="setSave" type="button">ส่งออกการตั้งค่า + พรีเซ็ต + ลายน้ำ</button></div>
     <p class="hint">ใช้ครั้งเดียวต่อเครื่องใหม่: ส่งไฟล์การตั้งค่าเข้า Drive แล้วเปิดด้วยปุ่ม "เปิดไฟล์งานแต่ง / การตั้งค่า" บนเครื่องใหม่</p>
-  </section>
-
-  <section class="panel">
-    <h2>หลังบันทึก</h2>
-    <ol class="steps">
-      <li><b>แชร์</b> ส่งทุกภาพที่ทำเสร็จไป <b>Line</b>, <b>Facebook</b> หรือ <b>Google Drive</b> ได้ในครั้งเดียว</li>
-      <li><b>บันทึก</b> เก็บภาพลงโฟลเดอร์ Download ของเครื่อง เปิดดูได้ในแกลเลอรี</li>
-      <li><b>ZIP</b> รวมทุกภาพเป็นไฟล์เดียว เหมาะกับงานจำนวนมาก</li>
-    </ol>
-  </section>
-</div>
-
-<div class="dock">
-  <div class="in">
-    <div class="prog"><i id="progBar"></i></div>
-    <div class="msg" id="msg" aria-live="polite">เลือกภาพเพื่อเริ่ม</div>
-    <div class="acts">
-      <button class="btn primary" id="btnRun" type="button" disabled>ทำทุกภาพ</button>
-      <button class="btn gold" id="btnSave" type="button" disabled>แชร์</button>
-      <button class="btn" id="btnDl" type="button" disabled>บันทึก</button>
-      <button class="btn" id="btnZip" type="button" disabled>ZIP</button>
     </div>
-  </div>
+  </section>
+  <nav class="subtabs" id="subtabs" hidden>
+    <button type="button" data-s="light">แสง</button><button type="button" data-s="curve">เส้นโค้ง</button><button type="button" data-s="color">สี</button><button type="button" data-s="hsl">สีรายช่อง</button><button type="button" data-s="fx">เอฟเฟกต์</button>
+  </nav>
+  <nav class="tabs" id="tabs" aria-label="เครื่องมือ"><button type="button" data-t="auto"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20L15 9M14 4v2M19 9h2M17.5 5.5l1.5-1.5M10 4l.7 1.5L12 6l-1.3.5L10 8l-.7-1.5L8 6l1.3-.5z"/></svg><span>การดำเนินการ</span></button><button type="button" data-t="presets"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 15a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM15 19a5 5 0 1 0 0-10 5 5 0 0 0 0 10z"/></svg><span>ค่าที่ตั้งไว้</span></button><button type="button" data-t="skin"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9 10h.01M15 10h.01M8.5 14.5c1.8 2 5.2 2 7 0"/></svg><span>ตกแต่ง</span></button><button type="button" data-t="crop"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2v16h16M2 6h16v16"/></svg><span>ครอบตัด</span></button><button type="button" data-t="edit"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8M16 5v4M10 15v4"/></svg><span>แก้ไข</span></button><button type="button" data-t="layers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 7a5 5 0 1 0 0 10"/></svg><span>มาสกิ้ง</span></button><button type="button" data-t="erase"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 21h10M3.5 14.5l9-9a2 2 0 0 1 2.8 0l3.2 3.2a2 2 0 0 1 0 2.8L12 18H8z"/></svg><span>นำออก</span></button><button type="button" data-t="wm"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 21c3-1 5-3 7-6l7-9a2 2 0 0 0-3-2L7 11c-2 2-3 5-4 10z"/></svg><span>ลายน้ำ</span></button><button type="button" data-t="art"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z"/></svg><span>ศิลป์ AI</span></button></nav>
 </div>
+<div class="tools" id="toolRow" hidden><button id="btnErase" type="button"></button><button id="btnCrop" type="button"></button></div>
 
 <script src="face-api.js"></script>
 <script src="jszip.min.js"></script>
@@ -780,7 +806,7 @@ async function preview(){
     if(r.pick)$('faceInfo').textContent+=` · ลายน้ำ${r.pick==='dark'?'ดำ':'ขาว'}`;
     if(my!==pvRun)return;
     draw($('cvAfter'),r.bitmap);if($('curveSec')&&$('curveSec').open)updateHist().then(drawCurve);
-    $('stage').style.aspectRatio=`${r.bitmap.width}/${r.bitmap.height}`;
+    setAspect(`${r.bitmap.width}/${r.bitmap.height}`);
     ['divider','labL','labR'].forEach(k=>$(k).hidden=false);$('toolRow').hidden=false;
     applyView();
   }catch(err){msg('แสดงตัวอย่างไม่ได้: '+err.message,true)}
@@ -869,12 +895,12 @@ function setMode(m){mode=m;const cmp=m==='compare';$('stage').style.touchAction=
   ['cvAfter'].forEach(k=>$(k).hidden=!cmp);['divider','labL','labR'].forEach(k=>$(k).hidden=!cmp||!items.length);
   $('cvPaint').hidden=m!=='erase';$('cvEdit').hidden=m!=='crop';$('cropBox').hidden=m!=='crop';$('cvBefore').hidden=m==='crop';
   $('eraseBar').hidden=m!=='erase';$('cropBar').hidden=m!=='crop';$('toolRow').hidden=!cmp||!items.length;
-  document.querySelector('.dock').hidden=!cmp;
+  document.querySelector('.topacts').style.visibility=cmp?'':'hidden';
   if(!cmp){view='full';$('vFull').classList.add('on');$('vFace').classList.remove('on');applyView()}}
 /* --- erase --- */
 async function enterErase(){const it=items[cur];if(!it)return;const pv=await pvOf(it);
   if(!it.erase){const c=document.createElement('canvas');c.width=pv.width;c.height=pv.height;it.erase=c;it.eraseHist=[]}
-  draw($('cvBefore'),pv);const p=$('cvPaint');p.width=pv.width;p.height=pv.height;$('stage').style.aspectRatio=`${pv.width}/${pv.height}`;
+  draw($('cvBefore'),pv);const p=$('cvPaint');p.width=pv.width;p.height=pv.height;setAspect(`${pv.width}/${pv.height}`);
   paintOverlay(it);setMode('erase');$('stage').scrollIntoView({block:'start',behavior:'smooth'});$('btnAuto').hidden=true;$('autoInfo').textContent='กำลังหาคนอื่นในภาพ…';
   try{const s=await segOf(it);const o=otherPeople(s);it._others=o;$('btnAuto').hidden=!o.ids.length;
     $('btnAuto').textContent=`ลบคนอื่นที่ตรวจพบ (${o.ids.length})`;$('autoInfo').textContent=o.ids.length?'':'ไม่พบคนอื่นในภาพ · ระบายลบเองได้'}
@@ -913,7 +939,7 @@ function renderCrop(){ // whole frame (+ margin when expanding), crop box on top
   const g=Object.assign({},eg,{crop:eg.expand?{x:-PAD,y:-PAD,w:1+2*PAD,h:1+2*PAD}:{x:0,y:0,w:1,h:1}});const r=warpGeo(egSrc,g),cv=$('cvEdit');cv.width=r.out.width;cv.height=r.out.height;
   const x=cv.getContext('2d');x.putImageData(r.out,0,0);
   if(r.mask){const d=x.getImageData(0,0,cv.width,cv.height);for(let i=0;i<r.mask.length;i++)if(r.mask[i]){const q=i*4,ch=((i%cv.width>>3)+((i/cv.width|0)>>3))&1?200:170;d.data[q]=d.data[q+1]=d.data[q+2]=ch}x.putImageData(d,0,0)}
-  $('stage').style.aspectRatio=`${cv.width}/${cv.height}`;placeBox()}
+  setAspect(`${cv.width}/${cv.height}`);placeBox()}
 function placeBox(){const p=eg.expand?PAD:0,t=1+2*p,c=eg.crop,b=$('cropBox');
   b.style.left=((c.x+p)/t*100)+'%';b.style.top=((c.y+p)/t*100)+'%';b.style.width=(c.w/t*100)+'%';b.style.height=(c.h/t*100)+'%'}
 function clampCrop(){const lo=eg.expand?-PAD:0,hi=eg.expand?1+PAD:1,c=eg.crop;c.w=Math.min(c.w,hi-lo);c.h=Math.min(c.h,hi-lo);
@@ -1063,6 +1089,60 @@ function drawCurve(){const sec=$('curveSec');if(!sec||!sec.open)return;const {cv
   $('curveChs').onclick=e=>{const b=e.target.closest('button');if(!b)return;curveCh=b.dataset.c;updateHist().then(drawCurve);drawCurve()};
   $('curvePresets').onclick=e=>{const b=e.target.closest('button');if(!b)return;const p=CURVE_PRESETS[+b.dataset.i][1],a=curAdj();curveOf(a,curveCh);a.curve[curveCh]=p?p.map(q=>q.slice()):[[0,0],[1,1]];drawCurve();adjChanged()};
   window.addEventListener('resize',drawCurve)})();
+
+
+/* ======================= editor layout: stage fitting + tool tabs ======================= */
+let stageRatio=2/3;
+function setAspect(v){const p=String(v).split('/').map(Number);if(p[0]>0&&p[1]>0)stageRatio=p[0]/p[1];fitStage()}
+function fitStage(){const v=$('view'),st=$('stage');if(!v)return;const W=Math.max(50,v.clientWidth-24),H=Math.max(50,v.clientHeight-8);let w=W,h=W/stageRatio;if(h>H){h=H;w=H*stageRatio}st.style.width=Math.floor(w)+'px';st.style.height=Math.floor(h)+'px'}
+try{new ResizeObserver(fitStage).observe($('view'))}catch(e){window.addEventListener('resize',fitStage)}
+const ADJ_SEC={light:'แสง',curve:'เส้นโค้งโทน (Tone Curve)',color:'สี',hsl:'สีรายช่อง (HSL)',fx:'เอฟเฟกต์'};
+let tab='edit',sub='light',tabSwitching=false;
+function showTab(t,s2){if(!document.querySelector(`#tabs button[data-t="${t}"]`)&&t!=='file')t='edit';const prev=tab;if(s2)sub=s2;
+  tabSwitching=true;if(prev==='erase'&&t!=='erase'&&mode==='erase')$('btnEraseDone').click();if(prev==='crop'&&t!=='crop'&&mode==='crop')$('btnCropDone').click();tabSwitching=false;
+  tab=t;$('gridView').hidden=true;$('morePanel').hidden=true;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===t));
+  $('subtabs').hidden=t!=='edit';document.querySelectorAll('#subtabs button').forEach(b=>b.classList.toggle('on',b.dataset.s===sub));
+  const isAdj=t==='presets'||t==='edit';$('adjHead').hidden=!isAdj;const key=t==='edit'?'adj':t;
+  document.querySelectorAll('.pn').forEach(p=>p.classList.toggle('on',p.dataset.pane===key));
+  if(key==='adj')document.querySelectorAll('#adjBody .adjsec').forEach(d=>{const on=d.querySelector('summary').textContent.trim()===ADJ_SEC[sub];d.hidden=!on;if(on&&!d.open)d.open=true});
+  if(t==='edit'&&sub==='curve'&&typeof drawCurve==='function')setTimeout(()=>{updateHist().then(drawCurve);drawCurve()},30);
+  if((t==='erase'||t==='crop')&&!items.length)msg('เลือกภาพก่อน แล้วค่อยใช้เครื่องมือนี้',true);
+  if(t==='erase'&&items.length&&mode!=='erase')enterErase();if(t==='crop'&&items.length&&mode!=='crop')enterCrop();
+  $('pane').scrollTop=0;try{localStorage.setItem('pf_tab',JSON.stringify([t,sub]))}catch(e){}
+  const b=document.querySelector(`#tabs button[data-t="${t}"]`);b&&b.scrollIntoView({inline:'nearest',block:'nearest'});setTimeout(fitStage,0)}
+$('tabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab(b.dataset.t)};
+$('subtabs').onclick=e=>{const b=e.target.closest('button');if(b)showTab('edit',b.dataset.s)};
+['btnEraseDone','btnCropDone','btnCropCancel'].forEach(id=>$(id).addEventListener('click',()=>{if(!tabSwitching)setTimeout(()=>{if(tab==='erase'||tab==='crop')showTab('edit')},0)}));
+/* quick actions */
+$('qaAuto').onclick=()=>{showTab('edit','light');$('adjAuto').click()};
+$('qaPeople').onclick=async()=>{if(!items.length){msg('เลือกภาพก่อน',true);return}showTab('erase');const t0=Date.now();
+  while(Date.now()-t0<60000&&$('autoInfo').textContent==='กำลังหาคนอื่นในภาพ…')await new Promise(r=>setTimeout(r,200));
+  if(!$('btnAuto').hidden){$('btnAuto').click();msg('ทำเครื่องหมายคนอื่นแล้ว · กด “เสร็จ” เพื่อลบ หรือระบายเพิ่มได้')}};
+$('qaStraight').onclick=async()=>{if(!items.length){msg('เลือกภาพก่อน',true);return}showTab('crop');await new Promise(r=>setTimeout(r,400));$('btnAutoAng').click()};
+$('qaSubject').onclick=()=>{showTab('layers');if(!$('layersOn').checked){$('layersOn').checked=true;$('layersOn').dispatchEvent(new Event('change'))}};
+/* library grid */
+function paintGrid(){$('gridCnt').textContent=items.length||'';$('gvInfo').textContent=items.length?`${items.length} ภาพ · ทำแล้ว ${items.filter(x=>x.out).length}`:'ยังไม่มีภาพ แตะ ＋ เพื่อเพิ่ม';
+  $('gv').innerHTML=items.map((it,i)=>`<button type="button" data-i="${i}" class="${i===cur?'on':''}"><img src="${it.thumb}" alt=""><span class="st ${it.out?'done':''}">${it.out?'✓':i+1}</span></button>`).join('')}
+$('btnGrid').onclick=()=>{const open=$('gridView').hidden;if(open){if(mode!=='compare'){showTab('edit')}paintGrid()}$('gridView').hidden=!open};
+$('gv').onclick=e=>{const b=e.target.closest('button');if(!b)return;cur=+b.dataset.i;$('gridView').hidden=true;paintTray();paintPer();if(typeof paintAdj==='function')paintAdj();preview()};
+const _paintTray=paintTray;paintTray=function(){_paintTray();paintGrid()};
+/* more menu */
+$('btnMore').onclick=e=>{e.stopPropagation();$('morePanel').hidden=!$('morePanel').hidden};
+document.addEventListener('click',e=>{if(!e.target.closest('#morePanel'))$('morePanel').hidden=true});
+$('morePanel').onclick=e=>{const b=e.target.closest('button');if(!b)return;$('morePanel').hidden=true;const m=b.dataset.m;
+  if(m==='dl')$('btnDl').disabled?msg('กด “ทำทุกภาพ” ก่อน แล้วค่อยบันทึก',true):$('btnDl').click();
+  else if(m==='zip')$('btnZip').disabled?msg('กด “ทำทุกภาพ” ก่อน แล้วค่อยรวม ZIP',true):$('btnZip').click();else showTab('file')};
+/* undo (settings & per-photo edits) */
+const HIST=[];let lastSnap=null,histTimer=null;
+function snapNow(){const it=items[cur],o={P:{}};PROJ_KEYS.forEach(k=>o.P[k]=P[k]);o.idx=cur;o.adj=it&&it.adj||null;o.geo=it&&it.geo||null;o.wmc=it&&it.wmc||null;return JSON.stringify(o)}
+function trackHist(){clearTimeout(histTimer);histTimer=setTimeout(()=>{const s2=snapNow();if(lastSnap&&s2!==lastSnap){const a=JSON.parse(lastSnap),b2=JSON.parse(s2);
+  if(!(a.idx!==b2.idx&&JSON.stringify(a.P)===JSON.stringify(b2.P))){HIST.push(lastSnap);if(HIST.length>40)HIST.shift()}}lastSnap=s2;$('btnUndoAll').disabled=!HIST.length},500)}
+$('btnUndoAll').onclick=()=>{const prev=HIST.pop();if(!prev)return;const o=JSON.parse(prev);for(const k in o.P)P[k]=o.P[k];store.set('pf_settings',P);
+  const it=items[o.idx];if(it){it.adj=o.adj||undefined;it.geo=o.geo;it.wmc=o.wmc;it.out=null}items.forEach(x=>x.out=null);
+  lastSnap=prev;paintSettings();paintAdj();paintTray();preview();$('btnUndoAll').disabled=!HIST.length;msg('ย้อนกลับแล้ว')};
+const _preview=preview;preview=function(){trackHist();return _preview.apply(this,arguments)};
+{const st=store.get('pf_tab',['edit','light']);const t=Array.isArray(st)?st[0]:'edit',s3=Array.isArray(st)?st[1]:'light';showTab(t==='erase'||t==='crop'||!t?'edit':t,s3||'light')}fitStage();
 
 /* --- sharing & saving --- */
 /* ======================= edit file (continue on any device) + settings backup ======================= */
